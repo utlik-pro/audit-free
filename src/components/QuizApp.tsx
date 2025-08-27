@@ -3,6 +3,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { departments, Department, QuizSection } from '@/data/quizData';
 import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface QuizResponse {
   questionId: number;
@@ -25,6 +27,8 @@ export const QuizApp = () => {
   const [responses, setResponses] = useState<QuizResponse[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string>('');
   const [customAnswer, setCustomAnswer] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
 
   const handleDepartmentSelect = (department: Department) => {
     setSelectedDepartment(department);
@@ -45,7 +49,7 @@ export const QuizApp = () => {
     }
   };
 
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
     if (!selectedAnswer) return;
 
     const newResponse: QuizResponse = {
@@ -62,17 +66,46 @@ export const QuizApp = () => {
       setSelectedAnswer('');
       setCustomAnswer('');
     } else {
-      // Quiz completed
-      const session: QuizSession = {
-        department: selectedDepartment!.name,
-        position: selectedSection!.position,
-        responses: updatedResponses,
-        completedAt: new Date()
-      };
+      // Quiz completed - save to database
+      setIsSubmitting(true);
       
-      // Here you would save to database via Supabase
-      console.log('Quiz completed:', session);
-      setCurrentStep('complete');
+      try {
+        const questions = selectedSection!.questions;
+        const processedAnswers = updatedResponses.map((response, index) => ({
+          questionText: questions[index].text,
+          answer: response.answer,
+          customAnswer: response.customAnswer || ''
+        }));
+
+        const { error } = await supabase
+          .from('quiz_responses')
+          .insert({
+            department: selectedDepartment!.id,
+            position: selectedSection!.position,
+            questions: JSON.stringify(questions),
+            answers: JSON.stringify(processedAnswers)
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        toast({
+          title: "Спасибо за участие!",
+          description: "Ваши ответы успешно сохранены.",
+        });
+        
+        setCurrentStep('complete');
+      } catch (error) {
+        console.error('Error saving quiz response:', error);
+        toast({
+          title: "Ошибка",
+          description: "Не удалось сохранить ответы. Попробуйте еще раз.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -264,10 +297,10 @@ export const QuizApp = () => {
           <div className="flex justify-end">
             <Button
               onClick={handleNextQuestion}
-              disabled={!selectedAnswer || (selectedAnswer === 'Свой вариант' && !customAnswer.trim())}
+              disabled={!selectedAnswer || (selectedAnswer === 'Свой вариант' && !customAnswer.trim()) || isSubmitting}
               className="bg-gradient-primary hover:opacity-90 text-white px-8 py-3 rounded-lg font-semibold shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {currentQuestionIndex === selectedSection!.questions.length - 1 ? 'Завершить опрос' : 'Следующий вопрос'}
+              {isSubmitting ? 'Сохраняем...' : currentQuestionIndex === selectedSection!.questions.length - 1 ? 'Завершить опрос' : 'Следующий вопрос'}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </div>
