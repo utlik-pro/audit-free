@@ -1,4 +1,4 @@
-import QuizApp from "@/components/QuizApp";
+import { QuizApp } from "@/components/QuizApp";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Settings } from "lucide-react";
