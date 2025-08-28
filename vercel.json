@@ -1,12 +1,13 @@
 {
-  "buildCommand": "npm ci && npm run build",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": null,
-  "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" = \"gh-pages\" ] && echo 'skip' || exit 0",
+  "ignoreCommand": "if [ \"$VERCEL_GIT_COMMIT_REF\" = \"gh-pages\" ]; then echo skip; fi",
   "cleanUrls": true,
   "trailingSlash": false,
-  "routes": [
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "github": {
     "silent": true
