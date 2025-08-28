@@ -134,6 +134,11 @@ export const QuizApp = () => {
   const renderDepartmentSelection = () => (
     <div className="min-h-screen bg-gradient-background flex items-center justify-center p-6">
       <div className="w-full max-w-4xl">
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
+          <span className="text-muted-foreground">×</span>
+          <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
+        </div>
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-foreground mb-4">
             Анонимный опрос сотрудников
@@ -171,6 +176,11 @@ export const QuizApp = () => {
   const renderPositionSelection = () => (
     <div className="min-h-screen bg-gradient-background flex items-center justify-center p-6">
       <div className="w-full max-w-2xl">
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
+          <span className="text-muted-foreground">×</span>
+          <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
+        </div>
         <div className="text-center mb-12">
           <Button
             variant="ghost"
@@ -219,6 +229,11 @@ export const QuizApp = () => {
     return (
       <div className="min-h-screen bg-gradient-background p-6">
         <div className="max-w-3xl mx-auto">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
+            <span className="text-muted-foreground">×</span>
+            <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
+          </div>
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -325,6 +340,20 @@ export const QuizApp = () => {
             <p className="text-lg text-muted-foreground mb-8">
               Ваши ответы были успешно сохранены. Результаты опроса помогут улучшить рабочие процессы в компании.
             </p>
+
+            <div className="bg-secondary/20 rounded-lg p-6 mb-8">
+              <p className="text-sm text-muted-foreground mb-3">
+                Присоединяйтесь к сообществу <span className="font-semibold">M.AI.N — AI Community</span>,
+                где мы делимся самыми последними новостями в мире ИИ, практиками и кейсами.
+              </p>
+              <a
+                href="https://t.me/maincomby"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" className="glass-card">Вступить в M.AI.N — AI Community</Button>
+              </a>
+            </div>
             
             <div className="bg-secondary/20 rounded-lg p-6 mb-8">
               <div className="text-sm text-muted-foreground mb-2">Отдел:</div>

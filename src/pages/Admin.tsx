@@ -3,8 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Download, Users, BarChart3, Clock } from 'lucide-react';
+import { ArrowLeft, Download, Users, BarChart3, Clock, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
@@ -19,6 +21,8 @@ interface QuizResponse {
 }
 
 export default function Admin() {
+  const [authorized, setAuthorized] = useState<boolean>(false);
+  const [password, setPassword] = useState<string>('');
   const [responses, setResponses] = useState<QuizResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedResponse, setSelectedResponse] = useState<QuizResponse | null>(null);
@@ -26,8 +30,17 @@ export default function Admin() {
   const { toast } = useToast();
 
   useEffect(() => {
+    const isAuth = typeof window !== 'undefined' && localStorage.getItem('adminAuthorized') === 'true';
+    setAuthorized(isAuth);
     fetchResponses();
   }, []);
+
+  const parseMaybeJson = (value: any) => {
+    if (typeof value === 'string') {
+      try { return JSON.parse(value); } catch { return value; }
+    }
+    return value;
+  };
 
   const fetchResponses = async () => {
     try {
@@ -37,7 +50,12 @@ export default function Admin() {
         .order('completed_at', { ascending: false });
 
       if (error) throw error;
-      setResponses(data || []);
+      const normalized = (data || []).map((r: any) => ({
+        ...r,
+        answers: parseMaybeJson(r.answers) ?? [],
+        questions: parseMaybeJson(r.questions) ?? [],
+      }));
+      setResponses(normalized);
     } catch (error) {
       console.error('Error fetching responses:', error);
       toast({
@@ -52,15 +70,21 @@ export default function Admin() {
 
   const exportToCSV = () => {
     const headers = ['ID', 'Отдел', 'Позиция', 'Дата завершения', 'Вопросы и ответы'];
-    const csvData = responses.map(response => [
-      response.id,
-      response.department,
-      response.position,
-      new Date(response.completed_at).toLocaleString('ru-RU'),
-      response.answers.map((answer: any, index: number) => 
+    const csvData = responses.map((response: any) => {
+      const answersArr = Array.isArray(response.answers)
+        ? response.answers
+        : (typeof response.answers === 'string' ? parseMaybeJson(response.answers) : []);
+      const answersText = (answersArr || []).map((answer: any, index: number) => 
         `Q${index + 1}: ${answer.questionText}\nA: ${answer.answer}${answer.customAnswer ? ` (${answer.customAnswer})` : ''}`
-      ).join('\n---\n')
-    ]);
+      ).join('\n---\n');
+      return [
+        response.id,
+        response.department,
+        response.position,
+        new Date(response.completed_at).toLocaleString('ru-RU'),
+        answersText,
+      ];
+    });
 
     const csvContent = [headers, ...csvData]
       .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
@@ -125,6 +149,57 @@ export default function Admin() {
 
   const stats = getStats();
 
+  if (!authorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted/30 to-muted/50">
+        <Card className="w-full max-w-sm glass-card border-0 shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Доступ в админку
+            </CardTitle>
+            <CardDescription>Введите пароль для продолжения</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (password === '125690') {
+                  localStorage.setItem('adminAuthorized', 'true');
+                  setAuthorized(true);
+                  setPassword('');
+                } else {
+                  toast({
+                    title: 'Неверный пароль',
+                    description: 'Попробуйте снова.',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="admin-password">Пароль</Label>
+                <Input
+                  id="admin-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Введите пароль"
+                  className="glass-card"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Button type="button" variant="ghost" onClick={() => navigate('/')}>На главную</Button>
+                <Button type="submit" className="glass-button">Войти</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (selectedResponse) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-muted/50 p-4">
@@ -157,7 +232,7 @@ export default function Admin() {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {selectedResponse.answers.map((answer: any, index: number) => (
+                {(Array.isArray(selectedResponse.answers) ? selectedResponse.answers : (parseMaybeJson(selectedResponse.answers) || [])).map((answer: any, index: number) => (
                   <div key={index} className="border-l-4 border-primary/20 pl-4 py-2 bg-muted/10 rounded-r-lg">
                     <h4 className="font-medium text-foreground mb-2">
                       Вопрос {index + 1}: {answer.questionText}
