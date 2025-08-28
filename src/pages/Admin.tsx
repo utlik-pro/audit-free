@@ -32,6 +32,15 @@ export default function Admin() {
   useEffect(() => {
     const isAuth = typeof window !== 'undefined' && localStorage.getItem('adminAuthorized') === 'true';
     setAuthorized(isAuth);
+    // Allow access via URL param ?pw=125690 (useful on mobile keyboards)
+    if (!isAuth && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const pw = params.get('pw');
+      if (pw && pw.trim() === '125690') {
+        localStorage.setItem('adminAuthorized', 'true');
+        setAuthorized(true);
+      }
+    }
     fetchResponses();
   }, []);
 
@@ -164,7 +173,7 @@ export default function Admin() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (password === '125690') {
+                if (password.trim() === '125690') {
                   localStorage.setItem('adminAuthorized', 'true');
                   setAuthorized(true);
                   setPassword('');

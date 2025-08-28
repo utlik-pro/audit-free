@@ -21,12 +21,14 @@ const App = () => (
           <span className="text-muted-foreground">×</span>
           <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
         </div>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/admin" element={<Admin />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <div className="pb-28 sm:pb-24">
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/admin" element={<Admin />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
         {/* Global footer - full-width bottom bar without pill */}
         <footer className="fixed bottom-0 left-0 right-0 z-30">
           <div className="w-full bg-background/80 backdrop-blur-md border-t px-4 py-2 text-center text-xs sm:text-sm text-muted-foreground">
