@@ -21,7 +21,7 @@ const App = () => (
           <span className="text-muted-foreground">×</span>
           <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
         </div>
-        <div className="pb-28 sm:pb-24">
+        <div className="pb-40 sm:pb-28 md:pb-24">
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/admin" element={<Admin />} />
