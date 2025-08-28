@@ -3,6 +3,11 @@
   "outputDirectory": "dist",
   "framework": null,
   "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" = \"gh-pages\" ] && echo 'ignore' || exit 1",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "routes": [
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
   "github": {
     "silent": true
   }
