@@ -8,8 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 
 interface QuizResponse {
   questionId: number;
-  answer: string;
-  customAnswer?: string;
+  answers: string[];
+  customAnswers?: string[];
 }
 
 interface QuizSession {
@@ -25,14 +25,18 @@ export const QuizApp = () => {
   const [selectedSection, setSelectedSection] = useState<QuizSection | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState<QuizResponse[]>([]);
-  const [selectedAnswer, setSelectedAnswer] = useState<string>('');
-  const [customAnswer, setCustomAnswer] = useState<string>('');
+  const [selectedAnswers, setSelectedAnswers] = useState<string[]>([]);
+  const [customAnswers, setCustomAnswers] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const handleDepartmentSelect = (department: Department) => {
     setSelectedDepartment(department);
     setCurrentStep('position');
+    // Сброс на случай если пользователь возвращается назад
+    setSelectedAnswers([]);
+    setCustomAnswers({});
+    setResponses([]);
   };
 
   const handlePositionSelect = (section: QuizSection) => {
@@ -40,22 +44,65 @@ export const QuizApp = () => {
     setCurrentStep('quiz');
     setCurrentQuestionIndex(0);
     setResponses([]);
+    setSelectedAnswers([]);
+    setCustomAnswers({});
   };
 
   const handleAnswerSelect = (answer: string) => {
-    setSelectedAnswer(answer);
-    if (answer !== 'Свой вариант') {
-      setCustomAnswer('');
+    const currentQuestion = selectedSection!.questions[currentQuestionIndex];
+    // По умолчанию множественный выбор, кроме вопросов где явно указано false
+    const isMultipleChoice = currentQuestion.multipleChoice !== false;
+    
+    if (selectedAnswers.includes(answer)) {
+      // Снять выбор
+      setSelectedAnswers(selectedAnswers.filter(a => a !== answer));
+      if (answer === 'Свой вариант') {
+        const newCustomAnswers = { ...customAnswers };
+        delete newCustomAnswers['custom1'];
+        setCustomAnswers(newCustomAnswers);
+      }
+    } else {
+      if (isMultipleChoice) {
+        // Множественный выбор - до 2 вариантов
+        if (selectedAnswers.length < 2) {
+          setSelectedAnswers([...selectedAnswers, answer]);
+        } else {
+          toast({
+            title: "Максимум 2 варианта",
+            description: "Сначала снимите один из выбранных вариантов",
+            variant: "default",
+          });
+        }
+      } else {
+        // Одиночный выбор - заменяем предыдущий выбор
+        if (selectedAnswers[0] === 'Свой вариант') {
+          const newCustomAnswers = { ...customAnswers };
+          delete newCustomAnswers['custom1'];
+          setCustomAnswers(newCustomAnswers);
+        }
+        setSelectedAnswers([answer]);
+      }
     }
   };
 
   const handleNextQuestion = async () => {
-    if (!selectedAnswer) return;
+    if (selectedAnswers.length === 0) return;
+    
+    // Проверяем, что для всех "Свой вариант" заполнены кастомные ответы
+    const hasCustom = selectedAnswers.includes('Свой вариант');
+    if (hasCustom && (!customAnswers['custom1'] || !customAnswers['custom1'].trim())) {
+      return;
+    }
+
+    const customAnswersList = selectedAnswers
+      .filter(a => a === 'Свой вариант')
+      .map(() => customAnswers['custom1'])
+      .filter(Boolean);
 
     const newResponse: QuizResponse = {
       questionId: selectedSection!.questions[currentQuestionIndex].id,
-      answer: selectedAnswer,
-      customAnswer: selectedAnswer === 'Свой вариант' ? customAnswer : undefined
+      answers: selectedAnswers,
+      customAnswers: customAnswersList.length > 0 ? customAnswersList : undefined
     };
 
     const updatedResponses = [...responses, newResponse];
@@ -63,8 +110,8 @@ export const QuizApp = () => {
 
     if (currentQuestionIndex < selectedSection!.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setSelectedAnswer('');
-      setCustomAnswer('');
+      setSelectedAnswers([]);
+      setCustomAnswers({});
     } else {
       // Quiz completed - save to database
       setIsSubmitting(true);
@@ -73,8 +120,8 @@ export const QuizApp = () => {
         const questions = selectedSection!.questions;
         const processedAnswers = updatedResponses.map((response, index) => ({
           questionText: questions[index].text,
-          answer: response.answer,
-          customAnswer: response.customAnswer || ''
+          answers: response.answers,
+          customAnswers: response.customAnswers || []
         }));
 
         const { error } = await supabase
@@ -114,8 +161,12 @@ export const QuizApp = () => {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
       const previousResponse = responses[currentQuestionIndex - 1];
       if (previousResponse) {
-        setSelectedAnswer(previousResponse.answer);
-        setCustomAnswer(previousResponse.customAnswer || '');
+        setSelectedAnswers(previousResponse.answers);
+        const newCustomAnswers: { [key: string]: string } = {};
+        if (previousResponse.customAnswers && previousResponse.customAnswers[0]) {
+          newCustomAnswers['custom1'] = previousResponse.customAnswers[0];
+        }
+        setCustomAnswers(newCustomAnswers);
       }
       setResponses(responses.slice(0, currentQuestionIndex));
     }
@@ -127,16 +178,16 @@ export const QuizApp = () => {
     setSelectedSection(null);
     setCurrentQuestionIndex(0);
     setResponses([]);
-    setSelectedAnswer('');
-    setCustomAnswer('');
+    setSelectedAnswers([]);
+    setCustomAnswers({});
   };
 
   const renderDepartmentSelection = () => (
     <div className="min-h-screen bg-gradient-background flex items-center justify-center p-6">
       <div className="w-full max-w-4xl">
-        <div className="flex items-center justify-center gap-3 mb-6">
+        <div className="flex justify-center items-center gap-4 mb-8 mt-10">
           <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
-          <span className="text-muted-foreground">×</span>
+          <span className="text-2xl font-light text-muted-foreground">×</span>
           <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
         </div>
         <div className="text-center mb-12">
@@ -176,15 +227,20 @@ export const QuizApp = () => {
   const renderPositionSelection = () => (
     <div className="min-h-screen bg-gradient-background flex items-center justify-center p-6">
       <div className="w-full max-w-2xl">
-        <div className="flex items-center justify-center gap-3 mb-6">
+        <div className="flex justify-center items-center gap-4 mb-8 mt-10">
           <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
-          <span className="text-muted-foreground">×</span>
+          <span className="text-2xl font-light text-muted-foreground">×</span>
           <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
         </div>
         <div className="text-center mb-12">
           <Button
             variant="ghost"
-            onClick={() => setCurrentStep('department')}
+            onClick={() => {
+              setCurrentStep('department');
+              setSelectedAnswers([]);
+              setCustomAnswers({});
+              setResponses([]);
+            }}
             className="mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -228,18 +284,33 @@ export const QuizApp = () => {
 
     return (
       <div className="min-h-screen bg-gradient-background p-6">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-center gap-3 mb-6">
+        <div className="max-w-3xl mx-auto mt-10">
+          <div className="flex justify-center items-center gap-4 mb-4">
             <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
-            <span className="text-muted-foreground">×</span>
+            <span className="text-2xl font-light text-muted-foreground">×</span>
             <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
           </div>
+          
+          {/* Department and Position Info */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-3 px-4 py-2 bg-glass/30 backdrop-blur-glass rounded-full border border-glass-border/30">
+              <span className="text-2xl">{selectedDepartment?.emoji}</span>
+              <span className="text-sm font-medium text-foreground">{selectedDepartment?.name}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="text-sm font-medium text-foreground">{selectedSection?.position}</span>
+            </div>
+          </div>
+          
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <Button
                 variant="ghost"
-                onClick={currentQuestionIndex === 0 ? () => setCurrentStep('position') : handlePreviousQuestion}
+                onClick={currentQuestionIndex === 0 ? () => {
+                  setCurrentStep('position');
+                  setSelectedAnswers([]);
+                  setCustomAnswers({});
+                } : handlePreviousQuestion}
                 className="text-muted-foreground"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -262,41 +333,59 @@ export const QuizApp = () => {
           {/* Question Card */}
           <Card className="bg-glass/40 backdrop-blur-glass border-glass-border/50 shadow-glass mb-8">
             <div className="p-8">
-              <h3 className="text-2xl font-semibold text-foreground mb-8 leading-relaxed">
+              <h3 className="text-2xl font-semibold text-foreground mb-4 leading-relaxed">
                 {currentQuestion.text}
               </h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                {currentQuestion.multipleChoice !== false ? (
+                  <>Выберите 1 или 2 варианта ответа • Выбрано: {selectedAnswers.length}/2</>
+                ) : (
+                  <>Выберите один вариант ответа</>
+                )}
+              </p>
               
               <div className="space-y-3">
                 {currentQuestion.options.map((option, index) => (
                   <div key={index}>
                     <Card
                       className={`cursor-pointer transition-all duration-200 ${
-                        selectedAnswer === option
+                        selectedAnswers.includes(option)
                           ? 'bg-primary/20 border-primary/40 shadow-soft'
                           : 'bg-glass/20 hover:bg-glass-hover/30 border-glass-border/30'
                       }`}
                       onClick={() => handleAnswerSelect(option)}
                     >
                       <div className="p-4 flex items-center">
-                        <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
-                          selectedAnswer === option
+                        <div className={`w-5 h-5 ${currentQuestion.multipleChoice !== false ? 'rounded' : 'rounded-full'} border-2 mr-4 flex items-center justify-center ${
+                          selectedAnswers.includes(option)
                             ? 'border-primary bg-primary'
                             : 'border-muted-foreground/30'
                         }`}>
-                          {selectedAnswer === option && (
-                            <div className="w-2 h-2 rounded-full bg-white" />
+                          {selectedAnswers.includes(option) && (
+                            currentQuestion.multipleChoice !== false ? (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <div className="w-2 h-2 rounded-full bg-white" />
+                            )
                           )}
                         </div>
                         <span className="text-foreground font-medium">{option}</span>
+                        {selectedAnswers.includes(option) && currentQuestion.multipleChoice !== false && (
+                          <span className="ml-auto text-xs text-primary font-semibold">
+                            {selectedAnswers.indexOf(option) + 1}
+                          </span>
+                        )}
                       </div>
                     </Card>
                     
-                    {selectedAnswer === 'Свой вариант' && option === 'Свой вариант' && (
+                    {selectedAnswers.includes('Свой вариант') && option === 'Свой вариант' && (
                       <div className="mt-3 ml-9">
                         <input
                           type="text"
-                          value={customAnswer}
-                          onChange={(e) => setCustomAnswer(e.target.value)}
+                          value={customAnswers['custom1'] || ''}
+                          onChange={(e) => setCustomAnswers({ ...customAnswers, custom1: e.target.value })}
                           placeholder="Укажите ваш вариант..."
                           className="w-full p-3 rounded-lg bg-glass/30 border border-glass-border/50 text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary/50 outline-none"
                         />
@@ -312,7 +401,7 @@ export const QuizApp = () => {
           <div className="flex justify-end">
             <Button
               onClick={handleNextQuestion}
-              disabled={!selectedAnswer || (selectedAnswer === 'Свой вариант' && !customAnswer.trim()) || isSubmitting}
+              disabled={selectedAnswers.length === 0 || (selectedAnswers.includes('Свой вариант') && (!customAnswers['custom1'] || !customAnswers['custom1'].trim())) || isSubmitting}
               className="bg-gradient-primary hover:opacity-90 text-white px-8 py-3 rounded-lg font-semibold shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Сохраняем...' : currentQuestionIndex === selectedSection!.questions.length - 1 ? 'Завершить опрос' : 'Следующий вопрос'}
@@ -327,6 +416,11 @@ export const QuizApp = () => {
   const renderComplete = () => (
     <div className="min-h-screen bg-gradient-background flex items-center justify-center p-6">
       <div className="w-full max-w-2xl text-center">
+        <div className="flex justify-center items-center gap-4 mb-8">
+          <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
+          <span className="text-2xl font-light text-muted-foreground">×</span>
+          <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
+        </div>
         <Card className="bg-glass/40 backdrop-blur-glass border-glass-border/50 shadow-glass">
           <div className="p-12">
             <div className="text-6xl mb-6">

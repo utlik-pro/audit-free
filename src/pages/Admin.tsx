@@ -2,11 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Download, Users, BarChart3, Clock, Lock } from 'lucide-react';
+import { ArrowLeft, Download, Users, BarChart3, Clock, Lock, Archive, Trash2, Eye, EyeOff, CheckSquare, Square } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,6 +28,7 @@ interface QuizResponse {
   answers: any;
   completed_at: string;
   created_at: string;
+  archived?: boolean;
 }
 
 export default function Admin() {
@@ -26,6 +37,10 @@ export default function Admin() {
   const [responses, setResponses] = useState<QuizResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedResponse, setSelectedResponse] = useState<QuizResponse | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -59,11 +74,28 @@ export default function Admin() {
         .order('completed_at', { ascending: false });
 
       if (error) throw error;
+      
+      // Проверяем, есть ли колонка archived в первой записи
+      const hasArchivedColumn = data && data.length > 0 && 'archived' in data[0];
+      
+      // Используем localStorage только если колонки archived нет в БД
+      const archivedIds = hasArchivedColumn 
+        ? [] 
+        : JSON.parse(localStorage.getItem('archivedResponses') || '[]');
+      
       const normalized = (data || []).map((r: any) => ({
         ...r,
         answers: parseMaybeJson(r.answers) ?? [],
         questions: parseMaybeJson(r.questions) ?? [],
+        // Используем значение из БД если оно есть, иначе проверяем localStorage
+        archived: hasArchivedColumn ? (r.archived === true) : archivedIds.includes(r.id),
       }));
+      
+      // Если колонка archived существует в БД, очищаем localStorage
+      if (hasArchivedColumn && archivedIds.length > 0) {
+        localStorage.removeItem('archivedResponses');
+      }
+      
       setResponses(normalized);
     } catch (error) {
       console.error('Error fetching responses:', error);
@@ -77,15 +109,197 @@ export default function Admin() {
     }
   };
 
+  const toggleArchive = async (id: string, currentArchived: boolean) => {
+    try {
+      // Обновляем запись в БД
+      const { error } = await supabase
+        .from('quiz_responses')
+        .update({ archived: !currentArchived })
+        .eq('id', id);
+
+      if (error) {
+        // Если ошибка связана с отсутствием колонки (не должно происходить после миграции)
+        if (error.message.includes('column') || error.code === '42703') {
+          console.warn('Колонка archived не существует. Используем localStorage.');
+          
+          // Используем localStorage как запасной вариант
+          const archivedIds = JSON.parse(localStorage.getItem('archivedResponses') || '[]');
+          
+          if (currentArchived) {
+            const index = archivedIds.indexOf(id);
+            if (index > -1) archivedIds.splice(index, 1);
+          } else {
+            archivedIds.push(id);
+          }
+          
+          localStorage.setItem('archivedResponses', JSON.stringify(archivedIds));
+          
+          // Обновляем локальное состояние
+          setResponses(responses.map(r => 
+            r.id === id ? { ...r, archived: !currentArchived } : r
+          ));
+          
+          toast({
+            title: currentArchived ? "Разархивировано" : "Архивировано",
+            description: "Архивирование работает локально. Примените миграцию в Supabase.",
+            variant: "default",
+          });
+          return;
+        }
+        throw error;
+      }
+      
+      // Обновляем локальное состояние при успешном обновлении в БД
+      setResponses(responses.map(r => 
+        r.id === id ? { ...r, archived: !currentArchived } : r
+      ));
+      
+      toast({
+        title: currentArchived ? "Разархивировано" : "Архивировано",
+        description: currentArchived ? "Опрос восстановлен из архива" : "Опрос перемещен в архив",
+      });
+    } catch (error) {
+      console.error('Error toggling archive:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось изменить статус архивирования.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteResponse = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('quiz_responses')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      // Обновляем локальное состояние
+      setResponses(responses.filter(r => r.id !== id));
+      setDeleteConfirmId(null);
+      
+      toast({
+        title: "Удалено",
+        description: "Опрос успешно удален.",
+      });
+    } catch (error) {
+      console.error('Error deleting response:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось удалить опрос.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleSelectAll = () => {
+    const visibleResponses = filteredResponses();
+    if (selectedIds.size === visibleResponses.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visibleResponses.map(r => r.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const bulkArchive = async () => {
+    const toArchive = Array.from(selectedIds);
+    if (toArchive.length === 0) return;
+
+    try {
+      // Архивируем все выбранные записи
+      for (const id of toArchive) {
+        const response = responses.find(r => r.id === id);
+        if (response) {
+          await toggleArchive(id, response.archived || false);
+        }
+      }
+      
+      setSelectedIds(new Set());
+      toast({
+        title: "Операция завершена",
+        description: `Обработано ${toArchive.length} записей.`,
+      });
+    } catch (error) {
+      console.error('Error bulk archiving:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось обработать некоторые записи.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const bulkDelete = async () => {
+    const toDelete = Array.from(selectedIds);
+    if (toDelete.length === 0) return;
+
+    try {
+      // Удаляем все выбранные записи
+      for (const id of toDelete) {
+        const { error } = await supabase
+          .from('quiz_responses')
+          .delete()
+          .eq('id', id);
+        
+        if (error) throw error;
+      }
+      
+      // Обновляем локальное состояние
+      setResponses(responses.filter(r => !toDelete.includes(r.id)));
+      setSelectedIds(new Set());
+      setBulkDeleteConfirm(false);
+      
+      toast({
+        title: "Удалено",
+        description: `${toDelete.length} записей успешно удалено.`,
+      });
+    } catch (error) {
+      console.error('Error bulk deleting:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось удалить некоторые записи.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const filteredResponses = () => {
+    return responses.filter(r => showArchived ? r.archived : !r.archived);
+  };
+
   const exportToCSV = () => {
     const headers = ['ID', 'Отдел', 'Позиция', 'Дата завершения', 'Вопросы и ответы'];
     const csvData = responses.map((response: any) => {
       const answersArr = Array.isArray(response.answers)
         ? response.answers
         : (typeof response.answers === 'string' ? parseMaybeJson(response.answers) : []);
-      const answersText = (answersArr || []).map((answer: any, index: number) => 
-        `Q${index + 1}: ${answer.questionText}\nA: ${answer.answer}${answer.customAnswer ? ` (${answer.customAnswer})` : ''}`
-      ).join('\n---\n');
+      const answersText = (answersArr || []).map((answer: any, index: number) => {
+        // Обрабатываем как старый формат (один ответ), так и новый (массив ответов)
+        if (answer.answers && Array.isArray(answer.answers)) {
+          // Новый формат с множественными ответами
+          const answersStr = answer.answers.join(', ');
+          const customStr = answer.customAnswers && answer.customAnswers.length > 0 
+            ? ` (Свой: ${answer.customAnswers.join(', ')})` 
+            : '';
+          return `Q${index + 1}: ${answer.questionText}\nA: ${answersStr}${customStr}`;
+        } else {
+          // Старый формат с одним ответом
+          return `Q${index + 1}: ${answer.questionText}\nA: ${answer.answer}${answer.customAnswer ? ` (${answer.customAnswer})` : ''}`;
+        }
+      }).join('\n---\n');
       return [
         response.id,
         response.department,
@@ -133,10 +347,15 @@ export default function Admin() {
   };
 
   const getPositionName = (position: string) => {
+    // Прямое соответствие теперь
+    if (position === 'Руководитель' || position === 'Сотрудник') {
+      return position;
+    }
+    // Для обратной совместимости со старыми данными
     const names: Record<string, string> = {
-      'top': 'Топ-менеджеры',
-      'middle': 'Среднее звено',
-      'junior': 'Рядовые сотрудники'
+      'top': 'Руководитель',
+      'middle': 'Сотрудник',
+      'junior': 'Сотрудник'
     };
     return names[position] || position;
   };
@@ -246,13 +465,30 @@ export default function Admin() {
                     <h4 className="font-medium text-foreground mb-2">
                       Вопрос {index + 1}: {answer.questionText}
                     </h4>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      <strong>Ответ:</strong> {answer.answer}
-                    </p>
-                    {answer.customAnswer && (
-                      <p className="text-sm text-muted-foreground">
-                        <strong>Свой вариант:</strong> {answer.customAnswer}
-                      </p>
+                    {answer.answers && Array.isArray(answer.answers) ? (
+                      // Новый формат с множественными ответами
+                      <>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          <strong>Ответы:</strong> {answer.answers.join(', ')}
+                        </p>
+                        {answer.customAnswers && answer.customAnswers.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            <strong>Свой вариант:</strong> {answer.customAnswers.join(', ')}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      // Старый формат с одним ответом (для обратной совместимости)
+                      <>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          <strong>Ответ:</strong> {answer.answer}
+                        </p>
+                        {answer.customAnswer && (
+                          <p className="text-sm text-muted-foreground">
+                            <strong>Свой вариант:</strong> {answer.customAnswer}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}
@@ -284,10 +520,23 @@ export default function Admin() {
               Управление и анализ результатов опросов сотрудников
             </p>
           </div>
-          <Button onClick={exportToCSV} className="glass-card">
-            <Download className="mr-2 h-4 w-4" />
-            Экспорт CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setShowArchived(!showArchived)} 
+              variant="outline"
+              className="glass-card"
+            >
+              {showArchived ? (
+                <><Eye className="mr-2 h-4 w-4" /> Показать активные</>
+              ) : (
+                <><Archive className="mr-2 h-4 w-4" /> Показать архив</>
+              )}
+            </Button>
+            <Button onClick={exportToCSV} className="glass-card">
+              <Download className="mr-2 h-4 w-4" />
+              Экспорт CSV
+            </Button>
+          </div>
         </div>
 
         {/* Statistics Cards */}
@@ -331,33 +580,98 @@ export default function Admin() {
         {/* Responses Table */}
         <Card className="glass-card border-0 shadow-xl">
           <CardHeader>
-            <CardTitle>Результаты опросов</CardTitle>
+            <CardTitle>
+              {showArchived ? 'Архив опросов' : 'Результаты опросов'}
+            </CardTitle>
             <CardDescription>
-              Список всех завершенных опросов
+              {showArchived 
+                ? `Архивные опросы (${filteredResponses().length})`
+                : `Активные опросы (${filteredResponses().length})`
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Bulk Actions Bar */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center justify-between p-4 mb-4 bg-primary/10 rounded-lg">
+                <div className="text-sm font-medium">
+                  Выбрано: {selectedIds.size} записей
+                </div>
+                <div className="flex gap-2">
+                  {!showArchived && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={bulkArchive}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Архивировать выбранные
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setBulkDeleteConfirm(true)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Удалить выбранные
+                  </Button>
+                </div>
+              </div>
+            )}
             {loading ? (
               <div className="flex justify-center items-center h-32">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-            ) : responses.length === 0 ? (
+            ) : filteredResponses().length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Пока нет завершенных опросов
+                {showArchived 
+                  ? 'Нет архивных опросов' 
+                  : 'Нет активных опросов'
+                }
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={toggleSelectAll}
+                      >
+                        {selectedIds.size === filteredResponses().length && filteredResponses().length > 0 ? (
+                          <CheckSquare className="h-4 w-4" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TableHead>
                     <TableHead>Отдел</TableHead>
                     <TableHead>Позиция</TableHead>
                     <TableHead>Дата завершения</TableHead>
-                    <TableHead>Действия</TableHead>
+                    <TableHead></TableHead>
+                    <TableHead className="w-[100px] text-center">Действия</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {responses.map((response) => (
+                  {filteredResponses().map((response) => (
                     <TableRow key={response.id}>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => toggleSelect(response.id)}
+                        >
+                          {selectedIds.has(response.id) ? (
+                            <CheckSquare className="h-4 w-4" />
+                          ) : (
+                            <Square className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
                       <TableCell>
                         <Badge className={getDepartmentColor(response.department)}>
                           {getDepartmentName(response.department)}
@@ -380,6 +694,32 @@ export default function Admin() {
                           Посмотреть ответы
                         </Button>
                       </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-primary/10"
+                            onClick={() => toggleArchive(response.id, response.archived || false)}
+                            title={response.archived ? "Разархивировать" : "Архивировать"}
+                          >
+                            {response.archived ? (
+                              <Eye className="h-4 w-4" />
+                            ) : (
+                              <Archive className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-destructive/10 text-destructive"
+                            onClick={() => setDeleteConfirmId(response.id)}
+                            title="Удалить"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -387,6 +727,52 @@ export default function Admin() {
             )}
           </CardContent>
         </Card>
+        
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Это действие невозможно отменить. Опрос будет удален навсегда.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteConfirmId(null)}>
+                Отмена
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteConfirmId && deleteResponse(deleteConfirmId)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Удалить
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Bulk Delete Confirmation Dialog */}
+        <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Удалить выбранные записи?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Вы собираетесь удалить {selectedIds.size} записей. Это действие невозможно отменить.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setBulkDeleteConfirm(false)}>
+                Отмена
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={bulkDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Удалить все выбранные
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
