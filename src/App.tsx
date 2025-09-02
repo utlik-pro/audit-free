@@ -15,13 +15,13 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        {/* Global top logos header */}
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 glass-card border-0 shadow-md px-4 py-2 rounded-full flex items-center gap-3">
-          <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
-          <span className="text-muted-foreground">×</span>
-          <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
+        {/* Global top logos header - mobile optimized */}
+        <div className="fixed top-2 sm:top-4 left-1/2 -translate-x-1/2 z-50 glass-card border-0 shadow-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full flex items-center gap-2 sm:gap-3">
+          <img src="/mainlogo.png" alt="M.AI.N" className="h-8 sm:h-10 md:h-12 w-auto" />
+          <span className="text-sm sm:text-base text-muted-foreground">×</span>
+          <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-4 sm:h-5 md:h-6 w-auto" />
         </div>
-        <div className="pb-40 sm:pb-28 md:pb-24">
+        <div className="">
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/admin" element={<Admin />} />
@@ -29,27 +29,30 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
-        {/* Global footer - full-width bottom bar without pill */}
-        <footer className="fixed bottom-0 left-0 right-0 z-30">
-          <div className="w-full bg-background/80 backdrop-blur-md border-t px-4 py-2 text-center text-xs sm:text-sm text-muted-foreground">
-            <span className="mr-1">Разработано с любовью в</span>
-            <a
-              href="https://www.linkedin.com/in/utlik/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium underline underline-offset-4 hover:text-foreground transition-colors"
-            >
-              Utlik. Co
-            </a>
-            <span className="mx-1">&</span>
-            <a
-              href="https://t.me/maincomby"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium underline underline-offset-4 hover:text-foreground transition-colors"
-            >
-              M.AI.N — AI Community
-            </a>
+        {/* Global footer - mobile optimized, single line */}
+        <footer className="fixed bottom-0 left-0 right-0 z-20">
+          <div className="w-full bg-background/90 backdrop-blur-md border-t px-2 sm:px-4 py-1 sm:py-2 text-center text-xs text-muted-foreground">
+            <div className="flex items-center justify-center gap-1 whitespace-nowrap overflow-hidden">
+              <span className="hidden sm:inline">Разработано с любовью в</span>
+              <span className="sm:hidden">© </span>
+              <a
+                href="https://www.linkedin.com/in/utlik/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline underline-offset-4 hover:text-foreground transition-colors"
+              >
+                Utlik. Co
+              </a>
+              <span>&</span>
+              <a
+                href="https://t.me/maincomby"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline underline-offset-4 hover:text-foreground transition-colors"
+              >
+                M.AI.N
+              </a>
+            </div>
           </div>
         </footer>
       </BrowserRouter>

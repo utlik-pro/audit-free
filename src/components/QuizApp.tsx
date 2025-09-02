@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { departments, Department, QuizSection } from '@/data/quizData';
 import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -75,11 +76,6 @@ export const QuizApp = () => {
         }
       } else {
         // Одиночный выбор - заменяем предыдущий выбор
-        if (selectedAnswers[0] === 'Свой вариант') {
-          const newCustomAnswers = { ...customAnswers };
-          delete newCustomAnswers['custom1'];
-          setCustomAnswers(newCustomAnswers);
-        }
         setSelectedAnswers([answer]);
       }
     }
@@ -88,21 +84,28 @@ export const QuizApp = () => {
   const handleNextQuestion = async () => {
     if (selectedAnswers.length === 0) return;
     
-    // Проверяем, что для всех "Свой вариант" заполнены кастомные ответы
-    const hasCustom = selectedAnswers.includes('Свой вариант');
-    if (hasCustom && (!customAnswers['custom1'] || !customAnswers['custom1'].trim())) {
-      return;
+    // Проверяем, что если выбран "Свой вариант", то введен текст
+    if (selectedAnswers.includes('Свой вариант')) {
+      if (!customAnswers['custom1'] || customAnswers['custom1'].trim() === '') {
+        toast({
+          title: "Требуется ввод",
+          description: "Пожалуйста, укажите свой вариант ответа",
+          variant: "default",
+        });
+        return;
+      }
     }
 
-    const customAnswersList = selectedAnswers
-      .filter(a => a === 'Свой вариант')
-      .map(() => customAnswers['custom1'])
-      .filter(Boolean);
+    // Сохраняем кастомные ответы
+    const customAnswersArray = [];
+    if (selectedAnswers.includes('Свой вариант') && customAnswers['custom1']) {
+      customAnswersArray.push(customAnswers['custom1'].trim());
+    }
 
     const newResponse: QuizResponse = {
       questionId: selectedSection!.questions[currentQuestionIndex].id,
       answers: selectedAnswers,
-      customAnswers: customAnswersList.length > 0 ? customAnswersList : undefined
+      ...(customAnswersArray.length > 0 && { customAnswers: customAnswersArray })
     };
 
     const updatedResponses = [...responses, newResponse];
@@ -120,8 +123,7 @@ export const QuizApp = () => {
         const questions = selectedSection!.questions;
         const processedAnswers = updatedResponses.map((response, index) => ({
           questionText: questions[index].text,
-          answers: response.answers,
-          customAnswers: response.customAnswers || []
+          answers: response.answers
         }));
 
         const { error } = await supabase
@@ -162,11 +164,6 @@ export const QuizApp = () => {
       const previousResponse = responses[currentQuestionIndex - 1];
       if (previousResponse) {
         setSelectedAnswers(previousResponse.answers);
-        const newCustomAnswers: { [key: string]: string } = {};
-        if (previousResponse.customAnswers && previousResponse.customAnswers[0]) {
-          newCustomAnswers['custom1'] = previousResponse.customAnswers[0];
-        }
-        setCustomAnswers(newCustomAnswers);
       }
       setResponses(responses.slice(0, currentQuestionIndex));
     }
@@ -183,37 +180,51 @@ export const QuizApp = () => {
   };
 
   const renderDepartmentSelection = () => (
-    <div className="min-h-screen bg-gradient-background flex items-center justify-center p-6">
-      <div className="w-full max-w-4xl">
-        <div className="flex justify-center items-center gap-4 mb-8 mt-10">
-          <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
-          <span className="text-2xl font-light text-muted-foreground">×</span>
-          <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
-        </div>
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-foreground mb-4">
+    <div className="h-screen bg-gradient-background flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+      <div className="w-full max-w-4xl flex flex-col">
+        <div className="text-center mb-2 sm:mb-3 flex-shrink-0">
+          <h1 className="text-3xl sm:text-3xl md:text-4xl font-bold text-foreground mb-1 sm:mb-2 px-4">
             Анонимный опрос сотрудников
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg sm:text-lg text-muted-foreground px-4">
             Выберите ваш отдел для начала опроса
           </p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 sm:gap-2">
           {departments.map((dept) => (
             <Card
               key={dept.id}
-              className="group cursor-pointer transition-all duration-300 hover:scale-105 bg-glass/30 backdrop-blur-glass border-glass-border/50 hover:bg-glass-hover/40 shadow-glass"
+              className="group cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 bg-glass/30 backdrop-blur-glass border-glass-border/50 hover:bg-glass-hover/40 shadow-glass touch-manipulation relative overflow-hidden"
               onClick={() => handleDepartmentSelect(dept)}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                e.currentTarget.style.setProperty('--mouse-x', `${x}px`);
+                e.currentTarget.style.setProperty('--mouse-y', `${y}px`);
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.setProperty('--mouse-x', '50%');
+                e.currentTarget.style.setProperty('--mouse-y', '50%');
+              }}
             >
-              <div className="p-8 text-center">
-                <div className="text-5xl mb-4 group-hover:scale-110 transition-transform duration-300">
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                <div className="absolute w-36 h-36 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-blue-400/25 via-purple-400/25 to-pink-400/25 blur-2xl" 
+                     style={{
+                       left: 'var(--mouse-x)',
+                       top: 'var(--mouse-y)',
+                     }}
+                />
+              </div>
+              <div className="py-1 px-2 sm:py-1.5 sm:px-3 md:py-2 md:px-3 text-center min-h-[40px] sm:min-h-[50px] md:min-h-[60px] flex flex-col justify-center relative z-10">
+                <div className="text-4xl sm:text-5xl md:text-6xl mb-0 sm:mb-0.5 md:mb-1 group-hover:scale-110 transition-transform duration-300">
                   {dept.emoji}
                 </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">
+                <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground mb-0">
                   {dept.name}
                 </h3>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm sm:text-base text-muted-foreground">
                   {dept.sections.length} категории должностей
                 </div>
               </div>
@@ -225,14 +236,10 @@ export const QuizApp = () => {
   );
 
   const renderPositionSelection = () => (
-    <div className="min-h-screen bg-gradient-background flex items-center justify-center p-6">
-      <div className="w-full max-w-2xl">
-        <div className="flex justify-center items-center gap-4 mb-8 mt-10">
-          <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
-          <span className="text-2xl font-light text-muted-foreground">×</span>
-          <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
-        </div>
-        <div className="text-center mb-12">
+    <div className="h-screen bg-gradient-background flex items-center justify-center p-3 sm:p-6 overflow-hidden">
+      <div className="w-full max-w-2xl h-full flex flex-col justify-center pt-20 sm:pt-24">
+        {/* Убираем дублирующийся логотип полностью */}
+        <div className="text-center mb-6 sm:mb-12 flex-shrink-0">
           <Button
             variant="ghost"
             onClick={() => {
@@ -241,33 +248,52 @@ export const QuizApp = () => {
               setCustomAnswers({});
               setResponses([]);
             }}
-            className="mb-4"
+            className="mb-3 sm:mb-4 touch-manipulation min-h-[44px]"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Назад к отделам
           </Button>
           
-          <div className="text-3xl mb-4">{selectedDepartment?.emoji}</div>
-          <h2 className="text-3xl font-bold text-foreground mb-4">
+          <div className="text-4xl sm:text-3xl mb-2 sm:mb-4">{selectedDepartment?.emoji}</div>
+          <h2 className="text-3xl sm:text-2xl md:text-3xl font-bold text-foreground mb-2 sm:mb-4 px-4">
             {selectedDepartment?.name}
           </h2>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg sm:text-lg text-muted-foreground px-4">
             Выберите вашу должностную категорию
           </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2 sm:space-y-4 flex-1">
           {selectedDepartment?.sections.map((section, index) => (
             <Card
               key={index}
-              className="group cursor-pointer transition-all duration-300 hover:scale-102 bg-glass/30 backdrop-blur-glass border-glass-border/50 hover:bg-glass-hover/40 shadow-soft"
+              className="group cursor-pointer transition-all duration-300 hover:scale-102 active:scale-95 bg-glass/30 backdrop-blur-glass border-glass-border/50 hover:bg-glass-hover/40 shadow-soft touch-manipulation relative overflow-hidden"
               onClick={() => handlePositionSelect(section)}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                e.currentTarget.style.setProperty('--mouse-x', `${x}px`);
+                e.currentTarget.style.setProperty('--mouse-y', `${y}px`);
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.setProperty('--mouse-x', '50%');
+                e.currentTarget.style.setProperty('--mouse-y', '50%');
+              }}
             >
-              <div className="p-6">
-                <h3 className="text-xl font-semibold text-foreground mb-2">
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                <div className="absolute w-36 h-36 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-cyan-400/25 via-blue-400/25 to-purple-400/25 blur-2xl" 
+                     style={{
+                       left: 'var(--mouse-x)',
+                       top: 'var(--mouse-y)',
+                     }}
+                />
+              </div>
+              <div className="p-3 sm:p-5 md:p-6 min-h-[60px] sm:min-h-[80px] flex flex-col justify-center relative z-10">
+                <h3 className="text-lg sm:text-lg md:text-xl font-semibold text-foreground mb-1 sm:mb-2">
                   {section.position}
                 </h3>
-                <p className="text-muted-foreground">
+                <p className="text-base sm:text-base text-muted-foreground">
                   {section.questions.length} вопросов в анкете
                 </p>
               </div>
@@ -283,160 +309,175 @@ export const QuizApp = () => {
     const progress = ((currentQuestionIndex + 1) / selectedSection!.questions.length) * 100;
 
     return (
-      <div className="min-h-screen bg-gradient-background p-6">
-        <div className="max-w-3xl mx-auto mt-10">
-          <div className="flex justify-center items-center gap-4 mb-4">
-            <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
-            <span className="text-2xl font-light text-muted-foreground">×</span>
-            <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
-          </div>
-          
-          {/* Department and Position Info */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center gap-3 px-4 py-2 bg-glass/30 backdrop-blur-glass rounded-full border border-glass-border/30">
-              <span className="text-2xl">{selectedDepartment?.emoji}</span>
-              <span className="text-sm font-medium text-foreground">{selectedDepartment?.name}</span>
-              <span className="text-muted-foreground">•</span>
-              <span className="text-sm font-medium text-foreground">{selectedSection?.position}</span>
-            </div>
-          </div>
-          
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <Button
-                variant="ghost"
-                onClick={currentQuestionIndex === 0 ? () => {
-                  setCurrentStep('position');
-                  setSelectedAnswers([]);
-                  setCustomAnswers({});
-                } : handlePreviousQuestion}
-                className="text-muted-foreground"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                {currentQuestionIndex === 0 ? 'К выбору должности' : 'Предыдущий вопрос'}
-              </Button>
-              <div className="text-sm text-muted-foreground">
-                {currentQuestionIndex + 1} из {selectedSection!.questions.length}
+      <div className="h-screen bg-gradient-background overflow-hidden relative">
+        {/* Main content area */}
+        <div className="h-full pb-16 sm:pb-0 flex flex-col p-0 sm:p-6 pt-20 sm:pt-24">
+          <div className="sm:max-w-3xl mx-auto h-full flex flex-col w-full">
+            {/* Department and Position Info - mobile optimized */}
+            <div className="text-center mb-2 sm:mb-6 flex-shrink-0 px-3 sm:px-0">
+              <div className="inline-flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1 sm:py-2 bg-glass/30 backdrop-blur-glass rounded-full border border-glass-border/30 text-xs sm:text-sm whitespace-nowrap">
+                <span className="text-sm sm:text-xl">{selectedDepartment?.emoji}</span>
+                <span className="font-medium text-foreground">{selectedDepartment?.name}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className="font-medium text-foreground">{selectedSection?.position}</span>
               </div>
             </div>
             
-            {/* Progress Bar */}
-            <div className="w-full bg-secondary/30 rounded-full h-2 mb-6">
-              <div 
-                className="h-2 rounded-full bg-gradient-primary transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Question Card */}
-          <Card className="bg-glass/40 backdrop-blur-glass border-glass-border/50 shadow-glass mb-8">
-            <div className="p-8">
-              <h3 className="text-2xl font-semibold text-foreground mb-4 leading-relaxed">
-                {currentQuestion.text}
-              </h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                {currentQuestion.multipleChoice !== false ? (
-                  <>Выберите 1 или 2 варианта ответа • Выбрано: {selectedAnswers.length}/2</>
-                ) : (
-                  <>Выберите один вариант ответа</>
-                )}
-              </p>
+            {/* Header - mobile optimized */}
+            <div className="mb-2 sm:mb-6 flex-shrink-0 px-3 sm:px-0">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <Button
+                  variant="ghost"
+                  onClick={currentQuestionIndex === 0 ? () => {
+                    setCurrentStep('position');
+                    setSelectedAnswers([]);
+                    setCustomAnswers({});
+                  } : handlePreviousQuestion}
+                  className="text-muted-foreground text-sm sm:text-sm touch-manipulation min-h-[48px] sm:min-h-[44px] px-3 sm:px-4"
+                >
+                  <ArrowLeft className="w-4 h-4 sm:w-4 sm:h-4 mr-2 sm:mr-2" />
+                  <span className="hidden sm:inline">
+                    {currentQuestionIndex === 0 ? 'К выбору должности' : 'Предыдущий вопрос'}
+                  </span>
+                  <span className="sm:hidden">Назад</span>
+                </Button>
+                <div className="text-sm sm:text-sm text-muted-foreground font-medium">
+                  {currentQuestionIndex + 1} из {selectedSection!.questions.length}
+                </div>
+              </div>
               
-              <div className="space-y-3">
-                {currentQuestion.options.map((option, index) => (
-                  <div key={index}>
-                    <Card
-                      className={`cursor-pointer transition-all duration-200 ${
-                        selectedAnswers.includes(option)
-                          ? 'bg-primary/20 border-primary/40 shadow-soft'
-                          : 'bg-glass/20 hover:bg-glass-hover/30 border-glass-border/30'
-                      }`}
-                      onClick={() => handleAnswerSelect(option)}
-                    >
-                      <div className="p-4 flex items-center">
-                        <div className={`w-5 h-5 ${currentQuestion.multipleChoice !== false ? 'rounded' : 'rounded-full'} border-2 mr-4 flex items-center justify-center ${
-                          selectedAnswers.includes(option)
-                            ? 'border-primary bg-primary'
-                            : 'border-muted-foreground/30'
-                        }`}>
-                          {selectedAnswers.includes(option) && (
-                            currentQuestion.multipleChoice !== false ? (
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            ) : (
-                              <div className="w-2 h-2 rounded-full bg-white" />
-                            )
-                          )}
-                        </div>
-                        <span className="text-foreground font-medium">{option}</span>
-                        {selectedAnswers.includes(option) && currentQuestion.multipleChoice !== false && (
-                          <span className="ml-auto text-xs text-primary font-semibold">
-                            {selectedAnswers.indexOf(option) + 1}
-                          </span>
-                        )}
+              {/* Progress Bar */}
+              <div className="w-full bg-secondary/30 rounded-full h-1 sm:h-2">
+                <div 
+                  className="h-1 sm:h-2 rounded-full bg-gradient-primary transition-all duration-500"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Question Card - mobile optimized without scrolling, full width on mobile */}
+            <Card className="bg-glass/40 backdrop-blur-glass border-glass-border/50 shadow-glass flex flex-col overflow-hidden mx-0 sm:mx-0 rounded-none sm:rounded-lg">
+              <div className="p-2 sm:p-3 md:p-4 flex flex-col">
+                <div className="flex-shrink-0 mb-2 sm:mb-4">
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-semibold text-foreground mb-2 sm:mb-4 leading-tight sm:leading-relaxed">
+                    {currentQuestion.text}
+                  </h3>
+                  <p className="text-sm sm:text-sm text-muted-foreground">
+                    {currentQuestion.multipleChoice !== false ? (
+                      <>
+                        <span className="hidden sm:inline">Выберите 1 или 2 варианта ответа • Выбрано: {selectedAnswers.length}/2</span>
+                        <span className="sm:hidden">1-2 варианта • {selectedAnswers.length}/2</span>
+                      </>
+                    ) : (
+                      <>Выберите один вариант</>
+                    )}
+                  </p>
+                </div>
+                
+                <div className="">
+                  <div className="space-y-1 sm:space-y-3">
+                    {currentQuestion.options.map((option, index) => (
+                      <div key={index}>
+                        <Card
+                          className={`cursor-pointer transition-all duration-200 touch-manipulation active:scale-95 ${
+                            selectedAnswers.includes(option)
+                              ? 'bg-primary/20 border-primary/40 shadow-soft'
+                              : 'bg-glass/20 hover:bg-glass-hover/30 border-glass-border/30'
+                          }`}
+                          onClick={() => handleAnswerSelect(option)}
+                        >
+                          <div className="p-4 sm:p-4 flex items-center min-h-[52px] sm:min-h-[56px]">
+                            <div className={`w-5 h-5 sm:w-5 sm:h-5 ${currentQuestion.multipleChoice !== false ? 'rounded' : 'rounded-full'} border-2 mr-3 sm:mr-4 flex items-center justify-center flex-shrink-0 ${
+                              selectedAnswers.includes(option)
+                                ? 'border-primary bg-primary'
+                                : 'border-muted-foreground/30'
+                            }`}>
+                              {selectedAnswers.includes(option) && (
+                                currentQuestion.multipleChoice !== false ? (
+                                  <svg className="w-3 h-3 sm:w-3 sm:h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                ) : (
+                                  <div className="w-2 h-2 sm:w-2 sm:h-2 rounded-full bg-white" />
+                                )
+                              )}
+                            </div>
+                            <span className="text-sm sm:text-base text-foreground font-medium flex-1 pr-2 sm:pr-2 leading-snug">{option}</span>
+                            {selectedAnswers.includes(option) && currentQuestion.multipleChoice !== false && (
+                              <span className="text-xs text-primary font-semibold bg-primary/10 rounded-full w-5 h-5 sm:w-5 sm:h-5 flex items-center justify-center flex-shrink-0">
+                                {selectedAnswers.indexOf(option) + 1}
+                              </span>
+                            )}
+                          </div>
+                        </Card>
                       </div>
-                    </Card>
+                    ))}
                     
-                    {selectedAnswers.includes('Свой вариант') && option === 'Свой вариант' && (
-                      <div className="mt-3 ml-9">
-                        <input
+                    {selectedAnswers.some(answer => answer === 'Свой вариант') && (
+                      <div className="mt-3 sm:mt-4">
+                        <Input
                           type="text"
+                          placeholder="Укажите свой вариант"
                           value={customAnswers['custom1'] || ''}
-                          onChange={(e) => setCustomAnswers({ ...customAnswers, custom1: e.target.value })}
-                          placeholder="Укажите ваш вариант..."
-                          className="w-full p-3 rounded-lg bg-glass/30 border border-glass-border/50 text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary/50 outline-none"
+                          onChange={(e) => setCustomAnswers({...customAnswers, custom1: e.target.value})}
+                          className="w-full p-3 sm:p-4 text-sm sm:text-base border-2 border-primary/20 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 bg-background/50 backdrop-blur-sm touch-manipulation min-h-[48px] sm:min-h-[52px]"
                         />
                       </div>
                     )}
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
-          </Card>
-
-          {/* Next Button */}
-          <div className="flex justify-end">
-            <Button
-              onClick={handleNextQuestion}
-              disabled={selectedAnswers.length === 0 || (selectedAnswers.includes('Свой вариант') && (!customAnswers['custom1'] || !customAnswers['custom1'].trim())) || isSubmitting}
-              className="bg-gradient-primary hover:opacity-90 text-white px-8 py-3 rounded-lg font-semibold shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Сохраняем...' : currentQuestionIndex === selectedSection!.questions.length - 1 ? 'Завершить опрос' : 'Следующий вопрос'}
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+            </Card>
           </div>
+        </div>
+
+        {/* Fixed bottom button for mobile, inline for desktop */}
+        <div className="sm:hidden fixed bottom-6 left-0 right-0 z-50 px-3">
+          <Button
+            onClick={handleNextQuestion}
+            disabled={selectedAnswers.length === 0 || isSubmitting}
+            className="bg-gradient-primary hover:opacity-90 text-white px-8 py-4 rounded-lg font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[56px] w-full text-base"
+          >
+            {isSubmitting ? 'Сохраняем...' : currentQuestionIndex === selectedSection!.questions.length - 1 ? 'Завершить' : 'Далее'}
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+
+        {/* Desktop button */}
+        <div className="hidden sm:block absolute bottom-20 right-6">
+          <Button
+            onClick={handleNextQuestion}
+            disabled={selectedAnswers.length === 0 || isSubmitting}
+            className="bg-gradient-primary hover:opacity-90 text-white px-8 py-3 rounded-lg font-semibold shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Сохраняем...' : currentQuestionIndex === selectedSection!.questions.length - 1 ? 'Завершить опрос' : 'Следующий вопрос'}
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
         </div>
       </div>
     );
   };
 
   const renderComplete = () => (
-    <div className="min-h-screen bg-gradient-background flex items-center justify-center p-6">
-      <div className="w-full max-w-2xl text-center">
-        <div className="flex justify-center items-center gap-4 mb-8">
-          <img src="/mainlogo.png" alt="M.AI.N" className="h-12 w-auto" />
-          <span className="text-2xl font-light text-muted-foreground">×</span>
-          <img src="/Utlik_LogoBlack.png" alt="Utlik" className="h-6 w-auto" />
-        </div>
+    <div className="h-screen bg-gradient-background flex items-center justify-center p-3 sm:p-6 overflow-hidden">
+      <div className="w-full max-w-2xl text-center h-full flex flex-col justify-center pt-20 sm:pt-24">
+        {/* Убираем дублирующийся логотип полностью */}
         <Card className="bg-glass/40 backdrop-blur-glass border-glass-border/50 shadow-glass">
-          <div className="p-12">
-            <div className="text-6xl mb-6">
-              <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
+          <div className="p-6 sm:p-8 md:p-12">
+            <div className="text-4xl sm:text-6xl mb-4 sm:mb-6">
+              <CheckCircle className="w-12 h-12 sm:w-16 sm:h-16 text-green-500 mx-auto" />
             </div>
             
-            <h2 className="text-3xl font-bold text-foreground mb-4">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-3 sm:mb-4">
               Спасибо за участие!
             </h2>
             
-            <p className="text-lg text-muted-foreground mb-8">
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground mb-6 sm:mb-8 px-2">
               Ваши ответы были успешно сохранены. Результаты опроса помогут улучшить рабочие процессы в компании.
             </p>
 
-            <div className="bg-secondary/20 rounded-lg p-6 mb-8">
-              <p className="text-sm text-muted-foreground mb-3">
+            <div className="bg-secondary/20 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3 px-2">
                 Присоединяйтесь к сообществу <span className="font-semibold">M.AI.N — AI Community</span>,
                 где мы делимся самыми последними новостями в мире ИИ, практиками и кейсами.
               </p>
@@ -445,24 +486,35 @@ export const QuizApp = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button variant="outline" className="glass-card">Вступить в M.AI.N — AI Community</Button>
+                <Button variant="outline" className="glass-card text-xs sm:text-sm touch-manipulation min-h-[44px]">
+                  <span className="hidden sm:inline">Вступить в M.AI.N — AI Community</span>
+                  <span className="sm:hidden">Вступить в сообщество</span>
+                </Button>
               </a>
             </div>
             
-            <div className="bg-secondary/20 rounded-lg p-6 mb-8">
-              <div className="text-sm text-muted-foreground mb-2">Отдел:</div>
-              <div className="font-semibold text-foreground mb-4">{selectedDepartment?.name}</div>
-              
-              <div className="text-sm text-muted-foreground mb-2">Должность:</div>
-              <div className="font-semibold text-foreground mb-4">{selectedSection?.position}</div>
-              
-              <div className="text-sm text-muted-foreground mb-2">Отвечено вопросов:</div>
-              <div className="font-semibold text-foreground">{responses.length}</div>
+            <div className="bg-secondary/20 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 text-left">
+              <div className="grid grid-cols-2 gap-4 sm:gap-0 sm:block">
+                <div>
+                  <div className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">Отдел:</div>
+                  <div className="font-semibold text-foreground text-sm sm:text-base mb-2 sm:mb-4 break-words">{selectedDepartment?.name}</div>
+                </div>
+                
+                <div>
+                  <div className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">Должность:</div>
+                  <div className="font-semibold text-foreground text-sm sm:text-base mb-2 sm:mb-4 break-words">{selectedSection?.position}</div>
+                </div>
+                
+                <div className="col-span-2 sm:col-span-1">
+                  <div className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">Отвечено вопросов:</div>
+                  <div className="font-semibold text-foreground text-sm sm:text-base">{responses.length}</div>
+                </div>
+              </div>
             </div>
             
             <Button
               onClick={resetQuiz}
-              className="bg-gradient-primary hover:opacity-90 text-white px-8 py-3 rounded-lg font-semibold shadow-soft"
+              className="bg-gradient-primary hover:opacity-90 text-white px-6 sm:px-8 py-3 rounded-lg font-semibold shadow-soft touch-manipulation min-h-[48px] w-full sm:w-auto text-sm sm:text-base"
             >
               Пройти опрос заново
             </Button>
