@@ -30,6 +30,19 @@ export const QuizApp = () => {
   const [customAnswers, setCustomAnswers] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const customInputRef = useRef<HTMLInputElement>(null);
+
+  const scrollToInput = () => {
+    setTimeout(() => {
+      if (customInputRef.current) {
+        customInputRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+        customInputRef.current.focus();
+      }
+    }, 100);
+  };
 
   const handleDepartmentSelect = (department: Department) => {
     setSelectedDepartment(department);
@@ -67,6 +80,9 @@ export const QuizApp = () => {
         // Множественный выбор - до 2 вариантов
         if (selectedAnswers.length < 2) {
           setSelectedAnswers([...selectedAnswers, answer]);
+          if (answer === 'Свой вариант') {
+            scrollToInput();
+          }
         } else {
           toast({
             title: "Максимум 2 варианта",
@@ -77,6 +93,9 @@ export const QuizApp = () => {
       } else {
         // Одиночный выбор - заменяем предыдущий выбор
         setSelectedAnswers([answer]);
+        if (answer === 'Свой вариант') {
+          scrollToInput();
+        }
       }
     }
   };
@@ -392,51 +411,112 @@ export const QuizApp = () => {
                     {currentQuestion.options.map((option, index) => (
                       <div key={index}>
                         <Card
-                          className={`cursor-pointer transition-all duration-200 touch-manipulation active:scale-95 ${
+                          className={`${option === 'Свой вариант' && !selectedAnswers.includes(option) ? 'cursor-pointer' : option !== 'Свой вариант' ? 'cursor-pointer' : ''} transition-all duration-200 touch-manipulation active:scale-95 ${
                             selectedAnswers.includes(option)
                               ? 'bg-primary/20 border-primary/40 shadow-soft'
                               : 'bg-glass/20 hover:bg-glass-hover/30 border-glass-border/30'
                           }`}
-                          onClick={() => handleAnswerSelect(option)}
+                          onClick={() => {
+                            if (option === 'Свой вариант' && !selectedAnswers.includes(option)) {
+                              handleAnswerSelect(option);
+                            } else if (option !== 'Свой вариант') {
+                              handleAnswerSelect(option);
+                            }
+                          }}
                         >
-                          <div className="p-4 sm:p-4 flex items-center min-h-[52px] sm:min-h-[56px]">
-                            <div className={`w-5 h-5 sm:w-5 sm:h-5 ${currentQuestion.multipleChoice !== false ? 'rounded' : 'rounded-full'} border-2 mr-3 sm:mr-4 flex items-center justify-center flex-shrink-0 ${
-                              selectedAnswers.includes(option)
-                                ? 'border-primary bg-primary'
-                                : 'border-muted-foreground/30'
-                            }`}>
-                              {selectedAnswers.includes(option) && (
-                                currentQuestion.multipleChoice !== false ? (
-                                  <svg className="w-3 h-3 sm:w-3 sm:h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                ) : (
-                                  <div className="w-2 h-2 sm:w-2 sm:h-2 rounded-full bg-white" />
-                                )
-                              )}
-                            </div>
-                            <span className="text-sm sm:text-base text-foreground font-medium flex-1 pr-2 sm:pr-2 leading-snug">{option}</span>
-                            {selectedAnswers.includes(option) && currentQuestion.multipleChoice !== false && (
-                              <span className="text-xs text-primary font-semibold bg-primary/10 rounded-full w-5 h-5 sm:w-5 sm:h-5 flex items-center justify-center flex-shrink-0">
-                                {selectedAnswers.indexOf(option) + 1}
-                              </span>
+                          <div className="p-4 sm:p-4">
+                            {option === 'Свой вариант' && selectedAnswers.includes(option) ? (
+                              // Инпут внутри карточки "Свой вариант"
+                              <div className="space-y-3">
+                                <div className="flex items-center min-h-[20px]">
+                                  <div 
+                                    className={`w-5 h-5 sm:w-5 sm:h-5 ${currentQuestion.multipleChoice !== false ? 'rounded' : 'rounded-full'} border-2 mr-3 sm:mr-4 flex items-center justify-center flex-shrink-0 border-primary bg-primary cursor-pointer hover:bg-primary/80 transition-colors`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAnswerSelect(option);
+                                    }}
+                                    title="Снять выбор"
+                                  >
+                                    {currentQuestion.multipleChoice !== false ? (
+                                      <svg className="w-3 h-3 sm:w-3 sm:h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    ) : (
+                                      <div className="w-2 h-2 sm:w-2 sm:h-2 rounded-full bg-white" />
+                                    )}
+                                  </div>
+                                  <span className="text-sm sm:text-base text-foreground font-medium flex-1 pr-2 sm:pr-2 leading-snug">{option}</span>
+                                  <div className="flex items-center gap-2">
+                                    {currentQuestion.multipleChoice !== false && (
+                                      <span className="text-xs text-primary font-semibold bg-primary/10 rounded-full w-5 h-5 sm:w-5 sm:h-5 flex items-center justify-center flex-shrink-0">
+                                        {selectedAnswers.indexOf(option) + 1}
+                                      </span>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAnswerSelect(option);
+                                      }}
+                                      className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white text-xs font-bold transition-colors flex-shrink-0"
+                                      title="Снять выбор"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                </div>
+                                <Input
+                                  ref={customInputRef}
+                                  type="text"
+                                  placeholder="Укажите свой вариант"
+                                  value={customAnswers['custom1'] || ''}
+                                  onChange={(e) => setCustomAnswers({...customAnswers, custom1: e.target.value})}
+                                  onFocus={() => {
+                                    // Дополнительный скролл при фокусе для iOS Safari
+                                    setTimeout(() => {
+                                      if (customInputRef.current) {
+                                        customInputRef.current.scrollIntoView({
+                                          behavior: 'smooth',
+                                          block: 'center'
+                                        });
+                                      }
+                                    }, 300);
+                                  }}
+                                  className="w-full p-3 text-base border-2 border-primary/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 bg-white/80 backdrop-blur-sm touch-manipulation min-h-[44px]"
+                                  style={{ fontSize: '16px' }}
+                                  autoFocus
+                                />
+                              </div>
+                            ) : (
+                              // Обычный вариант ответа
+                              <div className="flex items-center min-h-[20px]" onClick={() => handleAnswerSelect(option)}>
+                                <div className={`w-5 h-5 sm:w-5 sm:h-5 ${currentQuestion.multipleChoice !== false ? 'rounded' : 'rounded-full'} border-2 mr-3 sm:mr-4 flex items-center justify-center flex-shrink-0 ${
+                                  selectedAnswers.includes(option)
+                                    ? 'border-primary bg-primary'
+                                    : 'border-muted-foreground/30'
+                                }`}>
+                                  {selectedAnswers.includes(option) && (
+                                    currentQuestion.multipleChoice !== false ? (
+                                      <svg className="w-3 h-3 sm:w-3 sm:h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    ) : (
+                                      <div className="w-2 h-2 sm:w-2 sm:h-2 rounded-full bg-white" />
+                                    )
+                                  )}
+                                </div>
+                                <span className="text-sm sm:text-base text-foreground font-medium flex-1 pr-2 sm:pr-2 leading-snug">{option}</span>
+                                {selectedAnswers.includes(option) && currentQuestion.multipleChoice !== false && (
+                                  <span className="text-xs text-primary font-semibold bg-primary/10 rounded-full w-5 h-5 sm:w-5 sm:h-5 flex items-center justify-center flex-shrink-0">
+                                    {selectedAnswers.indexOf(option) + 1}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                         </Card>
                       </div>
                     ))}
-                    
-                    {selectedAnswers.some(answer => answer === 'Свой вариант') && (
-                      <div className="mt-3 sm:mt-4">
-                        <Input
-                          type="text"
-                          placeholder="Укажите свой вариант"
-                          value={customAnswers['custom1'] || ''}
-                          onChange={(e) => setCustomAnswers({...customAnswers, custom1: e.target.value})}
-                          className="w-full p-3 sm:p-4 text-sm sm:text-base border-2 border-primary/20 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 bg-background/50 backdrop-blur-sm touch-manipulation min-h-[48px] sm:min-h-[52px]"
-                        />
-                      </div>
-                    )}
+
                   </div>
                 </div>
               </div>
