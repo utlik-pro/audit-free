@@ -264,7 +264,20 @@ export const QuizApp = () => {
         </div>
 
         <div className="space-y-2 sm:space-y-4 flex-1">
-          {selectedDepartment?.sections.map((section, index) => (
+          {(selectedDepartment?.sections
+            ? selectedDepartment.sections.slice().sort((a, b) => {
+                const orderMap: Record<string, number> = {
+                  'Сотрудники': 0,
+                  'Руководители': 1,
+                  'ТОП менеджеры': 2,
+                  'Top Manager': 2,
+                };
+                const aOrder = orderMap[a.position] ?? 99;
+                const bOrder = orderMap[b.position] ?? 99;
+                return aOrder - bOrder;
+              })
+            : []
+          ).map((section, index) => (
             <Card
               key={index}
               className="group cursor-pointer transition-all duration-300 hover:scale-102 active:scale-95 bg-glass/30 backdrop-blur-glass border-glass-border/50 hover:bg-glass-hover/40 shadow-soft touch-manipulation relative overflow-hidden"
@@ -290,9 +303,9 @@ export const QuizApp = () => {
                 />
               </div>
               <div className="p-3 sm:p-5 md:p-6 min-h-[60px] sm:min-h-[80px] flex flex-col justify-center relative z-10">
-                <h3 className="text-lg sm:text-lg md:text-xl font-semibold text-foreground mb-1 sm:mb-2">
-                  {section.position}
-                </h3>
+                                   <h3 className="text-lg sm:text-lg md:text-xl font-semibold text-foreground mb-1 sm:mb-2">
+                     {section.position}
+                   </h3>
                 <p className="text-base sm:text-base text-muted-foreground">
                   {section.questions.length} вопросов в анкете
                 </p>
