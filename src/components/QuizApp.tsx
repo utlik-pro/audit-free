@@ -447,21 +447,21 @@ export const QuizApp = () => {
                                   </div>
                                   <span className="text-sm sm:text-base text-foreground font-medium flex-1 pr-2 sm:pr-2 leading-snug">{option}</span>
                                   <div className="flex items-center gap-2">
-                                    {currentQuestion.multipleChoice !== false && (
-                                      <span className="text-xs text-primary font-semibold bg-primary/10 rounded-full w-5 h-5 sm:w-5 sm:h-5 flex items-center justify-center flex-shrink-0">
-                                        {selectedAnswers.indexOf(option) + 1}
-                                      </span>
-                                    )}
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleAnswerSelect(option);
                                       }}
-                                      className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white text-xs font-bold transition-colors flex-shrink-0"
+                                      className="px-2 py-1 rounded text-red-500 hover:text-red-600 hover:bg-red-50 text-xs font-medium transition-colors flex-shrink-0"
                                       title="Снять выбор"
                                     >
-                                      ×
+                                      Отменить
                                     </button>
+                                    {currentQuestion.multipleChoice !== false && (
+                                      <span className="text-xs text-primary font-semibold bg-primary/10 rounded-full w-5 h-5 sm:w-5 sm:h-5 flex items-center justify-center flex-shrink-0">
+                                        {selectedAnswers.indexOf(option) + 1}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                                 <Input
