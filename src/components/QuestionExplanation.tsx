@@ -67,12 +67,20 @@ export const QuestionExplanation = ({ question, isMobile = false, autoOpen = fal
             <Info className="w-6 h-6" />
           </button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="h-[80vh] overflow-y-auto">
+        <SheetContent side="bottom" className="h-[80vh] flex flex-col">
           <SheetHeader>
             <SheetTitle className="text-left">{question.text}</SheetTitle>
           </SheetHeader>
-          <div className="mt-6">
+          <div className="flex-1 overflow-y-auto mt-6 mb-4">
             <ExplanationContent />
+          </div>
+          <div className="border-t pt-4 pb-2">
+            <Button
+              onClick={() => setIsOpen(false)}
+              className="w-full bg-gradient-primary hover:opacity-90 text-white py-3 rounded-lg font-semibold text-base"
+            >
+              Понятно
+            </Button>
           </div>
         </SheetContent>
       </Sheet>
