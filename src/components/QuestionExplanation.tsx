@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Question } from "@/data/quizData";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -7,9 +8,23 @@ import { Info } from "lucide-react";
 interface QuestionExplanationProps {
   question: Question;
   isMobile?: boolean;
+  autoOpen?: boolean;
 }
 
-export const QuestionExplanation = ({ question, isMobile = false }: QuestionExplanationProps) => {
+export const QuestionExplanation = ({ question, isMobile = false, autoOpen = false }: QuestionExplanationProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Автоматически открываем при первом вопросе
+  useEffect(() => {
+    if (autoOpen) {
+      // Небольшая задержка для плавности
+      const timer = setTimeout(() => {
+        setIsOpen(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [autoOpen]);
+
   if (!question.explanation || !question.examples) {
     return null;
   }
@@ -38,7 +53,7 @@ export const QuestionExplanation = ({ question, isMobile = false }: QuestionExpl
   // Мобильная версия - выдвижная панель снизу
   if (isMobile) {
     return (
-      <Sheet>
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetTrigger asChild>
           <button
             className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors cursor-pointer flex-shrink-0 animate-pulse"
@@ -61,7 +76,7 @@ export const QuestionExplanation = ({ question, isMobile = false }: QuestionExpl
 
   // Десктоп версия - Popover при наведении/клике
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <button
           className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors cursor-pointer flex-shrink-0 ml-2 animate-pulse hover:animate-none"

@@ -315,7 +315,11 @@ export const QuizApp = () => {
                   <h3 className="text-xl sm:text-2xl font-semibold text-foreground flex-1">
                     {currentQuestion.text}
                   </h3>
-                  <QuestionExplanation question={currentQuestion} isMobile={isMobile} />
+                  <QuestionExplanation
+                    question={currentQuestion}
+                    isMobile={isMobile}
+                    autoOpen={currentQuestionIndex === 0}
+                  />
                 </div>
 
                 <p className="text-sm text-muted-foreground mb-6">
