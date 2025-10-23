@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { generateDiagnosticPDF } from '@/utils/pdfGenerator';
 import { QuestionExplanation } from '@/components/QuestionExplanation';
+import { sendTelegramNotification } from '@/utils/telegramNotifier';
 
 interface QuizResponse {
   questionId: number;
@@ -172,6 +173,22 @@ export const QuizApp = () => {
       if (data?.audit_number) {
         setAuditNumber(data.audit_number);
       }
+
+      // Отправляем уведомление в Telegram
+      await sendTelegramNotification({
+        name: contactInfo.name,
+        company: contactInfo.email.split('@')[1] || 'Не указана',
+        phone: contactInfo.phone,
+        telegram: contactInfo.phone, // можно добавить отдельное поле для telegram
+        email: contactInfo.email,
+        totalScore,
+        categoryScores: {
+          data: categoryScores['data'] || 0,
+          processes: categoryScores['processes'] || 0,
+          people: categoryScores['people'] || 0,
+          results: categoryScores['results'] || 0,
+        },
+      });
 
       toast({
         title: "Спасибо за участие!",
