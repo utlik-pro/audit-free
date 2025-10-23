@@ -28,6 +28,7 @@ interface QuizResponse {
   answers: any;
   completed_at: string;
   created_at: string;
+  audit_number?: number;
   archived?: boolean;
 }
 
@@ -41,6 +42,7 @@ export default function Admin() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [showOnlyDiagnostic, setShowOnlyDiagnostic] = useState(true); // Фильтр: показывать только новую диагностику
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -277,7 +279,14 @@ export default function Admin() {
   };
 
   const filteredResponses = () => {
-    return responses.filter(r => showArchived ? r.archived : !r.archived);
+    let filtered = responses.filter(r => showArchived ? r.archived : !r.archived);
+
+    // Фильтр: показываем только диагностику или все данные
+    if (showOnlyDiagnostic) {
+      filtered = filtered.filter(r => r.department === 'diagnostic');
+    }
+
+    return filtered;
   };
 
   const exportToCSV = () => {
@@ -325,6 +334,11 @@ export default function Admin() {
   };
 
   const getDepartmentColor = (department: string) => {
+    // Новая диагностика
+    if (department === 'diagnostic') {
+      return 'bg-purple-100 text-purple-800';
+    }
+    // Старые отделы
     const colors: Record<string, string> = {
       'analytics': 'bg-blue-100 text-blue-800',
       'it': 'bg-green-100 text-green-800',
@@ -336,6 +350,11 @@ export default function Admin() {
   };
 
   const getDepartmentName = (department: string) => {
+    // Новая диагностика
+    if (department === 'diagnostic') {
+      return 'Диагностика ИИ';
+    }
+    // Старые отделы
     const names: Record<string, string> = {
       'analytics': 'Аналитики',
       'it': 'IT отдел',
@@ -347,7 +366,12 @@ export default function Admin() {
   };
 
   const getPositionName = (position: string) => {
-    // Прямое соответствие теперь
+    // Новая диагностика - уровни готовности
+    if (position === 'high-risk') return '🔴 Зона высокого риска';
+    if (position === 'preparation') return '🟡 Зона подготовки';
+    if (position === 'ready') return '🟢 Зона готовности';
+
+    // Старые должности
     if (position === 'Руководитель' || position === 'Сотрудник') {
       return position;
     }
@@ -429,6 +453,12 @@ export default function Admin() {
   }
 
   if (selectedResponse) {
+    // Проверяем, является ли это новой диагностикой
+    const isDiagnostic = selectedResponse.department === 'diagnostic';
+    const answersData = typeof selectedResponse.answers === 'string'
+      ? parseMaybeJson(selectedResponse.answers)
+      : selectedResponse.answers;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-muted/50 p-4">
         <div className="max-w-4xl mx-auto">
@@ -444,7 +474,7 @@ export default function Admin() {
           <Card className="glass-card border-0 shadow-xl">
             <CardHeader className="pb-4">
               <CardTitle className="text-2xl gradient-text">
-                Детали ответа
+                {isDiagnostic ? 'Результаты диагностики' : 'Детали ответа'}
               </CardTitle>
               <div className="flex gap-2 mt-2">
                 <Badge className={getDepartmentColor(selectedResponse.department)}>
@@ -459,40 +489,129 @@ export default function Admin() {
               </p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {(Array.isArray(selectedResponse.answers) ? selectedResponse.answers : (parseMaybeJson(selectedResponse.answers) || [])).map((answer: any, index: number) => (
-                  <div key={index} className="border-l-4 border-primary/20 pl-4 py-2 bg-muted/10 rounded-r-lg">
-                    <h4 className="font-medium text-foreground mb-2">
-                      Вопрос {index + 1}: {answer.questionText}
-                    </h4>
-                    {answer.answers && Array.isArray(answer.answers) ? (
-                      // Новый формат с множественными ответами
-                      <>
-                        <p className="text-sm text-muted-foreground mb-1">
-                          <strong>Ответы:</strong> {answer.answers.join(', ')}
-                        </p>
-                        {answer.customAnswers && answer.customAnswers.length > 0 && (
-                          <p className="text-sm text-muted-foreground">
-                            <strong>Свой вариант:</strong> {answer.customAnswers.join(', ')}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      // Старый формат с одним ответом (для обратной совместимости)
-                      <>
-                        <p className="text-sm text-muted-foreground mb-1">
-                          <strong>Ответ:</strong> {answer.answer}
-                        </p>
-                        {answer.customAnswer && (
-                          <p className="text-sm text-muted-foreground">
-                            <strong>Свой вариант:</strong> {answer.customAnswer}
-                          </p>
-                        )}
-                      </>
-                    )}
+              {isDiagnostic ? (
+                // Новая диагностика - показываем баллы, категории и контакты
+                <div className="space-y-6">
+                  {/* Общий балл */}
+                  <div className="bg-gradient-to-r from-primary/10 to-purple-500/10 rounded-lg p-6 border-2 border-primary/20">
+                    <h3 className="text-xl font-bold mb-2">Общий балл</h3>
+                    <div className="text-4xl font-bold text-primary">
+                      {answersData?.totalScore || 0} / 20
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {answersData?.interpretation || selectedResponse.position}
+                    </p>
                   </div>
-                ))}
-              </div>
+
+                  {/* Баллы по категориям */}
+                  <div>
+                    <h3 className="text-lg font-bold mb-4">Баллы по категориям</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {answersData?.categoryScores && Object.entries(answersData.categoryScores).map(([key, score]: [string, any]) => {
+                        const categoryNames: Record<string, string> = {
+                          data: '📊 ДАННЫЕ',
+                          processes: '⚙️ ПРОЦЕССЫ',
+                          people: '👥 ЛЮДИ',
+                          results: '🎯 РЕЗУЛЬТАТЫ'
+                        };
+                        return (
+                          <div key={key} className="bg-muted/10 rounded-lg p-4 border border-primary/10">
+                            <div className="text-sm text-muted-foreground mb-1">
+                              {categoryNames[key] || key}
+                            </div>
+                            <div className="text-2xl font-bold text-primary">
+                              {score} / 5
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Контактная информация */}
+                  {answersData?.contactInfo && (
+                    <div className="bg-secondary/20 rounded-lg p-6">
+                      <h3 className="text-lg font-bold mb-4">Контактная информация</h3>
+                      <div className="space-y-2 text-sm">
+                        <p><strong>Имя:</strong> {answersData.contactInfo.name}</p>
+                        <p><strong>Телефон:</strong> {answersData.contactInfo.phone}</p>
+                        <p><strong>Email:</strong> {answersData.contactInfo.email}</p>
+                        {answersData.contactInfo.wantsDeepAudit && (
+                          <div className="mt-4 p-3 bg-green-100 dark:bg-green-900/20 rounded-lg border border-green-500/30">
+                            <p className="font-semibold text-green-800 dark:text-green-400">
+                              ✅ Запросил углубленную диагностику
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Детальные ответы */}
+                  {answersData?.responses && answersData.responses.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-bold mb-4">Детальные ответы</h3>
+                      <div className="space-y-3">
+                        {answersData.responses.map((resp: any, index: number) => {
+                          const categoryNames: Record<string, string> = {
+                            data: 'ДАННЫЕ',
+                            processes: 'ПРОЦЕССЫ',
+                            people: 'ЛЮДИ',
+                            results: 'РЕЗУЛЬТАТЫ'
+                          };
+                          return (
+                            <div key={index} className="border-l-4 border-primary/20 pl-4 py-2 bg-muted/10 rounded-r-lg">
+                              <div className="text-xs text-muted-foreground mb-1">
+                                {categoryNames[resp.category] || resp.category}
+                              </div>
+                              <div className="text-sm mb-1">
+                                Вопрос {resp.questionId}
+                              </div>
+                              <div className="text-lg font-bold text-primary">
+                                Оценка: {resp.rating} / 5
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Старый формат квиза
+                <div className="space-y-6">
+                  {(Array.isArray(answersData) ? answersData : (parseMaybeJson(answersData) || [])).map((answer: any, index: number) => (
+                    <div key={index} className="border-l-4 border-primary/20 pl-4 py-2 bg-muted/10 rounded-r-lg">
+                      <h4 className="font-medium text-foreground mb-2">
+                        Вопрос {index + 1}: {answer.questionText}
+                      </h4>
+                      {answer.answers && Array.isArray(answer.answers) ? (
+                        <>
+                          <p className="text-sm text-muted-foreground mb-1">
+                            <strong>Ответы:</strong> {answer.answers.join(', ')}
+                          </p>
+                          {answer.customAnswers && answer.customAnswers.length > 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              <strong>Свой вариант:</strong> {answer.customAnswers.join(', ')}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground mb-1">
+                            <strong>Ответ:</strong> {answer.answer}
+                          </p>
+                          {answer.customAnswer && (
+                            <p className="text-sm text-muted-foreground">
+                              <strong>Свой вариант:</strong> {answer.customAnswer}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -521,8 +640,15 @@ export default function Admin() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button 
-              onClick={() => setShowArchived(!showArchived)} 
+            <Button
+              onClick={() => setShowOnlyDiagnostic(!showOnlyDiagnostic)}
+              variant={showOnlyDiagnostic ? "default" : "outline"}
+              className="glass-card"
+            >
+              {showOnlyDiagnostic ? '✅ Только диагностика ИИ' : '📋 Все опросы'}
+            </Button>
+            <Button
+              onClick={() => setShowArchived(!showArchived)}
               variant="outline"
               className="glass-card"
             >
@@ -648,6 +774,7 @@ export default function Admin() {
                         )}
                       </Button>
                     </TableHead>
+                    <TableHead>Аудит №</TableHead>
                     <TableHead>Отдел</TableHead>
                     <TableHead>Позиция</TableHead>
                     <TableHead>Дата завершения</TableHead>
@@ -658,6 +785,9 @@ export default function Admin() {
                 <TableBody>
                   {filteredResponses().map((response) => (
                     <TableRow key={response.id}>
+                      <TableCell className="font-mono text-sm text-muted-foreground">
+                        {response.audit_number ? response.audit_number.toString().padStart(6, '0') : '—'}
+                      </TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"
