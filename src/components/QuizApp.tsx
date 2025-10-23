@@ -102,6 +102,9 @@ export const QuizApp = () => {
     if (currentQuestionIndex < totalQuestions - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setSelectedRating(null);
+
+      // Автоматический скролл наверх при переходе к следующему вопросу
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       // Квиз завершен, переходим к форме контактов
       setCurrentStep('contact');
@@ -270,38 +273,37 @@ export const QuizApp = () => {
 
     return (
       <div className="min-h-screen bg-gradient-background overflow-auto">
-        <div className="min-h-screen flex flex-col p-4 sm:p-6 pt-20 sm:pt-24 pb-32 sm:pb-24">
-          <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col">
+        {/* Fixed Progress Bar at Top */}
+        <div className="fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-b border-border/50">
+          <div className="w-full bg-secondary/30 h-2">
+            <div
+              className="h-2 bg-gradient-primary transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="px-4 py-2 flex items-center justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={currentQuestionIndex === 0 ? () => setCurrentStep('intro') : handlePreviousQuestion}
+              className="text-muted-foreground"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              {currentQuestionIndex === 0 ? 'К описанию' : 'Назад'}
+            </Button>
+            <div className="text-sm text-muted-foreground font-medium">
+              {currentQuestionIndex + 1} / {totalQuestions}
+            </div>
+          </div>
+        </div>
+
+        <div className="min-h-screen flex flex-col pt-24 pb-24">
+          <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col px-4 sm:px-6">
             {/* Категория */}
             <div className="text-center mb-4 sm:mb-6">
               <div className="inline-flex items-center gap-2 sm:gap-3 px-4 py-2 bg-glass/30 backdrop-blur-glass rounded-full border border-glass-border/30">
                 <span className="text-2xl">{currentCategory?.emoji}</span>
                 <span className="font-bold text-foreground">{currentCategory?.name}</span>
-              </div>
-            </div>
-
-            {/* Header */}
-            <div className="mb-4 sm:mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <Button
-                  variant="ghost"
-                  onClick={currentQuestionIndex === 0 ? () => setCurrentStep('intro') : handlePreviousQuestion}
-                  className="text-muted-foreground"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  {currentQuestionIndex === 0 ? 'К описанию' : 'Назад'}
-                </Button>
-                <div className="text-sm text-muted-foreground font-medium">
-                  Вопрос {currentQuestionIndex + 1} из {totalQuestions}
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full bg-secondary/30 rounded-full h-2">
-                <div
-                  className="h-2 rounded-full bg-gradient-primary transition-all duration-500"
-                  style={{ width: `${progress}%` }}
-                />
               </div>
             </div>
 
@@ -353,17 +355,20 @@ export const QuizApp = () => {
               </div>
             </Card>
 
-            {/* Next Button */}
-            <div className="flex justify-end">
-              <Button
-                onClick={handleNextQuestion}
-                disabled={selectedRating === null}
-                className="bg-gradient-primary hover:opacity-90 text-white px-8 py-3 rounded-lg font-semibold shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {currentQuestionIndex === totalQuestions - 1 ? 'Завершить диагностику' : 'Следующий вопрос'}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
+          </div>
+        </div>
+
+        {/* Fixed Bottom Button */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/50 p-4">
+          <div className="max-w-3xl mx-auto">
+            <Button
+              onClick={handleNextQuestion}
+              disabled={selectedRating === null}
+              className="w-full bg-gradient-primary hover:opacity-90 text-white py-4 rounded-lg font-semibold shadow-soft disabled:opacity-50 disabled:cursor-not-allowed text-base"
+            >
+              {currentQuestionIndex === totalQuestions - 1 ? 'Завершить диагностику' : 'Следующий вопрос'}
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
           </div>
         </div>
       </div>
