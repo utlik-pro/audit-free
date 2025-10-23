@@ -14,16 +14,21 @@ interface QuestionExplanationProps {
 export const QuestionExplanation = ({ question, isMobile = false, autoOpen = false }: QuestionExplanationProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Автоматически открываем при первом вопросе
+  // Автоматически открываем при каждом новом вопросе
   useEffect(() => {
     if (autoOpen) {
-      // Небольшая задержка для плавности
+      // Сначала закрываем (если было открыто)
+      setIsOpen(false);
+      // Небольшая задержка для плавности открытия
       const timer = setTimeout(() => {
         setIsOpen(true);
       }, 500);
       return () => clearTimeout(timer);
+    } else {
+      // Если autoOpen = false, закрываем
+      setIsOpen(false);
     }
-  }, [autoOpen]);
+  }, [autoOpen, question.id]); // Добавили question.id в зависимости
 
   if (!question.explanation || !question.examples) {
     return null;

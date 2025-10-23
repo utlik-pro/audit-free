@@ -318,7 +318,7 @@ export const QuizApp = () => {
                   <QuestionExplanation
                     question={currentQuestion}
                     isMobile={isMobile}
-                    autoOpen={currentQuestionIndex === 0}
+                    autoOpen={true}
                   />
                 </div>
 
