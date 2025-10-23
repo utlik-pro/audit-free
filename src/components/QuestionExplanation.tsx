@@ -1,5 +1,5 @@
 import { Question } from "@/data/quizData";
-import { Card } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Info } from "lucide-react";
@@ -17,15 +17,15 @@ export const QuestionExplanation = ({ question, isMobile = false }: QuestionExpl
   const ExplanationContent = () => (
     <div className="space-y-4">
       <div>
-        <h3 className="font-semibold text-lg mb-2">Что это значит?</h3>
-        <p className="text-gray-700 leading-relaxed">{question.explanation}</p>
+        <h3 className="font-semibold text-base mb-2">Что это значит?</h3>
+        <p className="text-sm text-gray-700 leading-relaxed">{question.explanation}</p>
       </div>
 
       <div>
-        <h3 className="font-semibold text-lg mb-3">Примеры:</h3>
+        <h3 className="font-semibold text-base mb-2">Примеры:</h3>
         <ul className="space-y-2">
           {question.examples.map((example, index) => (
-            <li key={index} className="flex gap-2 text-gray-700">
+            <li key={index} className="flex gap-2 text-sm text-gray-700">
               <span className="text-blue-600 font-bold flex-shrink-0">•</span>
               <span className="leading-relaxed">{example}</span>
             </li>
@@ -35,19 +35,17 @@ export const QuestionExplanation = ({ question, isMobile = false }: QuestionExpl
     </div>
   );
 
-  // Мобильная версия - выдвижная панель
+  // Мобильная версия - выдвижная панель снизу
   if (isMobile) {
     return (
       <Sheet>
         <SheetTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-3 gap-2"
+          <button
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors cursor-pointer flex-shrink-0 animate-pulse"
+            aria-label="Пояснение к вопросу"
           >
-            <Info className="w-4 h-4" />
-            Подробнее о вопросе
-          </Button>
+            <Info className="w-6 h-6" />
+          </button>
         </SheetTrigger>
         <SheetContent side="bottom" className="h-[80vh] overflow-y-auto">
           <SheetHeader>
@@ -61,14 +59,25 @@ export const QuestionExplanation = ({ question, isMobile = false }: QuestionExpl
     );
   }
 
-  // Десктоп версия - карточка справа
+  // Десктоп версия - Popover при наведении/клике
   return (
-    <Card className="p-6 bg-blue-50 border-blue-200">
-      <div className="flex items-start gap-2 mb-4">
-        <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-        <h3 className="font-semibold text-lg text-blue-900">Пояснение</h3>
-      </div>
-      <ExplanationContent />
-    </Card>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors cursor-pointer flex-shrink-0 ml-2 animate-pulse hover:animate-none"
+          aria-label="Пояснение к вопросу"
+        >
+          <Info className="w-6 h-6" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-96 max-h-[600px] overflow-y-auto p-4"
+        side="right"
+        align="start"
+        sideOffset={10}
+      >
+        <ExplanationContent />
+      </PopoverContent>
+    </Popover>
   );
 };

@@ -31,7 +31,18 @@ export const QuizApp = () => {
   const [contactInfo, setContactInfo] = useState<ContactInfo>({ name: '', phone: '', email: '', wantsDeepAudit: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [auditNumber, setAuditNumber] = useState<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
+
+  // Определяем мобильное устройство
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Собираем все вопросы из всех категорий
   const allQuestions = categories.flatMap(cat => cat.questions);
@@ -297,9 +308,13 @@ export const QuizApp = () => {
             {/* Question Card */}
             <Card className="bg-glass/40 backdrop-blur-glass border-glass-border/50 shadow-glass mb-6">
               <div className="p-6 sm:p-8">
-                <h3 className="text-xl sm:text-2xl font-semibold text-foreground mb-6">
-                  {currentQuestion.text}
-                </h3>
+                {/* Заголовок вопроса с иконкой пояснения */}
+                <div className="flex items-start gap-2 mb-6">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-foreground flex-1">
+                    {currentQuestion.text}
+                  </h3>
+                  <QuestionExplanation question={currentQuestion} isMobile={isMobile} />
+                </div>
 
                 <p className="text-sm text-muted-foreground mb-6">
                   Выберите оценку от 1 до 5:

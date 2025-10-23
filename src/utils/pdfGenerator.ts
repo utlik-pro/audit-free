@@ -60,7 +60,9 @@ const fromTop = (pageHeight: number, mm: number) => pageHeight - mmToPt(mm);
 const rgbColor = (color: [number, number, number]) =>
   rgb(color[0] / 255, color[1] / 255, color[2] / 255);
 
-const wrapLines = (text: string, maxWidth: number, font: PDFFont, size: number) => {
+const wrapLines = (text: string | undefined, maxWidth: number, font: PDFFont, size: number) => {
+  if (!text) return [];
+
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';

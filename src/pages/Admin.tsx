@@ -19,6 +19,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download, Users, BarChart3, Clock, Lock, Archive, Trash2, Eye, EyeOff, CheckSquare, Square } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { generateDiagnosticPDF } from '@/utils/pdfGenerator';
+import { interpretations } from '@/data/quizData';
 
 interface QuizResponse {
   id: string;
@@ -473,20 +475,64 @@ export default function Admin() {
 
           <Card className="glass-card border-0 shadow-xl">
             <CardHeader className="pb-4">
-              <CardTitle className="text-2xl gradient-text">
-                {isDiagnostic ? 'Результаты диагностики' : 'Детали ответа'}
-              </CardTitle>
-              <div className="flex gap-2 mt-2">
-                <Badge className={getDepartmentColor(selectedResponse.department)}>
-                  {getDepartmentName(selectedResponse.department)}
-                </Badge>
-                <Badge variant="outline">
-                  {getPositionName(selectedResponse.position)}
-                </Badge>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-2xl gradient-text">
+                    {isDiagnostic ? 'Результаты диагностики' : 'Детали ответа'}
+                  </CardTitle>
+                  <div className="flex gap-2 mt-2">
+                    <Badge className={getDepartmentColor(selectedResponse.department)}>
+                      {getDepartmentName(selectedResponse.department)}
+                    </Badge>
+                    <Badge variant="outline">
+                      {getPositionName(selectedResponse.position)}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Завершен: {new Date(selectedResponse.completed_at).toLocaleString('ru-RU')}
+                  </p>
+                </div>
+                {isDiagnostic && answersData && (
+                  <Button
+                    onClick={async () => {
+                      try {
+                        // Находим объект интерпретации по уровню
+                        const interpretationLevel = answersData.interpretationLevel || 'preparation';
+                        const interpretationObj = interpretations.find(i => i.level === interpretationLevel) || interpretations[1];
+
+                        await generateDiagnosticPDF({
+                          categoryScores: answersData.categoryScores || {},
+                          totalScore: answersData.totalScore || 0,
+                          interpretation: {
+                            emoji: interpretationObj.emoji,
+                            title: interpretationObj.title,
+                            description: interpretationObj.description,
+                            recommendations: interpretationObj.recommendations,
+                          },
+                          contactInfo: answersData.contactInfo || { name: 'Пользователь', phone: '', email: '' },
+                          auditNumber: selectedResponse.audit_number || 0,
+                          completedAt: new Date(selectedResponse.completed_at),
+                        });
+                        toast({
+                          title: "PDF создан",
+                          description: "Отчет успешно скачан",
+                        });
+                      } catch (error) {
+                        console.error('Error generating PDF:', error);
+                        toast({
+                          title: "Ошибка",
+                          description: "Не удалось создать PDF",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    className="glass-button"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Скачать PDF
+                  </Button>
+                )}
               </div>
-              <p className="text-sm text-muted-foreground">
-                Завершен: {new Date(selectedResponse.completed_at).toLocaleString('ru-RU')}
-              </p>
             </CardHeader>
             <CardContent>
               {isDiagnostic ? (
@@ -546,6 +592,40 @@ export default function Admin() {
                       </div>
                     </div>
                   )}
+
+                  {/* Рекомендации */}
+                  {answersData?.interpretationLevel && (() => {
+                    const interpretation = interpretations.find(i => i.level === answersData.interpretationLevel);
+                    if (!interpretation) return null;
+
+                    return (
+                      <div className={`rounded-lg p-6 border-2 ${
+                        interpretation.level === 'high-risk' ? 'bg-red-50 dark:bg-red-900/10 border-red-300 dark:border-red-800' :
+                        interpretation.level === 'preparation' ? 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-300 dark:border-yellow-800' :
+                        'bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-800'
+                      }`}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <span className="text-4xl">{interpretation.emoji}</span>
+                          <div>
+                            <h3 className="text-xl font-bold">{interpretation.title}</h3>
+                            <p className="text-sm text-muted-foreground">Диапазон баллов: {interpretation.range}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm mb-4">{interpretation.description}</p>
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-sm">Рекомендации:</h4>
+                          <ul className="space-y-1">
+                            {interpretation.recommendations.map((rec, idx) => (
+                              <li key={idx} className="text-sm flex gap-2">
+                                <span className="text-primary">•</span>
+                                <span>{rec}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Детальные ответы */}
                   {answersData?.responses && answersData.responses.length > 0 && (
