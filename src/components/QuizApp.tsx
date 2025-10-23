@@ -173,23 +173,24 @@ export const QuizApp = () => {
 
       if (data?.audit_number) {
         setAuditNumber(data.audit_number);
-      }
 
-      // Отправляем уведомление в Telegram
-      await sendTelegramNotification({
-        name: contactInfo.name,
-        company: contactInfo.company,
-        phone: contactInfo.phone,
-        telegram: contactInfo.phone,
-        email: contactInfo.email,
-        totalScore,
-        categoryScores: {
-          data: categoryScores['data'] || 0,
-          processes: categoryScores['processes'] || 0,
-          people: categoryScores['people'] || 0,
-          results: categoryScores['results'] || 0,
-        },
-      });
+        // Отправляем уведомление в Telegram с номером аудита
+        await sendTelegramNotification({
+          name: contactInfo.name,
+          company: contactInfo.company,
+          phone: contactInfo.phone,
+          telegram: contactInfo.phone,
+          email: contactInfo.email,
+          totalScore,
+          auditNumber: data.audit_number,
+          categoryScores: {
+            data: categoryScores['data'] || 0,
+            processes: categoryScores['processes'] || 0,
+            people: categoryScores['people'] || 0,
+            results: categoryScores['results'] || 0,
+          },
+        });
+      }
 
       toast({
         title: "Спасибо за участие!",
@@ -420,7 +421,7 @@ export const QuizApp = () => {
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Ваше имя"
+                  placeholder="Иван Петров"
                   value={contactInfo.name}
                   onChange={(e) => setContactInfo({ ...contactInfo, name: e.target.value })}
                   className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -434,7 +435,7 @@ export const QuizApp = () => {
                 <Input
                   id="company"
                   type="text"
-                  placeholder="Название вашей компании"
+                  placeholder="ООО Рога и Копыта"
                   value={contactInfo.company}
                   onChange={(e) => setContactInfo({ ...contactInfo, company: e.target.value })}
                   className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -448,7 +449,7 @@ export const QuizApp = () => {
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="+ (__) ___-__-__"
+                  placeholder="+7 999 123-45-67"
                   value={contactInfo.phone}
                   onChange={(e) => setContactInfo({ ...contactInfo, phone: e.target.value })}
                   className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -462,7 +463,7 @@ export const QuizApp = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="example@mail.com"
+                  placeholder="ivan.petrov@example.com"
                   value={contactInfo.email}
                   onChange={(e) => setContactInfo({ ...contactInfo, email: e.target.value })}
                   className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"

@@ -7,6 +7,7 @@ interface TelegramNotificationData {
   telegram: string;
   email: string;
   totalScore: number;
+  auditNumber: number;
   categoryScores: {
     data: number;
     processes: number;
@@ -32,9 +33,12 @@ export async function sendTelegramNotification(data: TelegramNotificationData): 
     }
   ) || interpretations[1];
 
+  // Форматируем номер аудита с нулями
+  const formattedAuditNumber = data.auditNumber.toString().padStart(6, '0');
+
   // Форматируем сообщение
   const message = `
-🎯 <b>Новое прохождение квиза!</b>
+🆕 <b>Новый лид #${formattedAuditNumber}</b>
 
 👤 <b>Контакт:</b>
 • Имя: ${data.name}
