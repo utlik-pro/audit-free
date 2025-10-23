@@ -19,6 +19,7 @@ interface QuizResponse {
 
 interface ContactInfo {
   name: string;
+  company: string;
   phone: string;
   email: string;
   wantsDeepAudit: boolean;
@@ -29,7 +30,7 @@ export const QuizApp = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState<QuizResponse[]>([]);
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
-  const [contactInfo, setContactInfo] = useState<ContactInfo>({ name: '', phone: '', email: '', wantsDeepAudit: false });
+  const [contactInfo, setContactInfo] = useState<ContactInfo>({ name: '', company: '', phone: '', email: '', wantsDeepAudit: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [auditNumber, setAuditNumber] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -124,10 +125,10 @@ export const QuizApp = () => {
   };
 
   const handleSubmitContact = async () => {
-    if (!contactInfo.name || !contactInfo.phone || !contactInfo.email) {
+    if (!contactInfo.name || !contactInfo.company || !contactInfo.phone || !contactInfo.email) {
       toast({
         title: "Заполните все поля",
-        description: "Пожалуйста, укажите имя, телефон и email",
+        description: "Пожалуйста, укажите имя, компанию, телефон и email",
         variant: "default",
       });
       return;
@@ -177,9 +178,9 @@ export const QuizApp = () => {
       // Отправляем уведомление в Telegram
       await sendTelegramNotification({
         name: contactInfo.name,
-        company: contactInfo.email.split('@')[1] || 'Не указана',
+        company: contactInfo.company,
         phone: contactInfo.phone,
-        telegram: contactInfo.phone, // можно добавить отдельное поле для telegram
+        telegram: contactInfo.phone,
         email: contactInfo.email,
         totalScore,
         categoryScores: {
@@ -213,7 +214,7 @@ export const QuizApp = () => {
     setCurrentQuestionIndex(0);
     setResponses([]);
     setSelectedRating(null);
-    setContactInfo({ name: '', phone: '', email: '', wantsDeepAudit: false });
+    setContactInfo({ name: '', company: '', phone: '', email: '', wantsDeepAudit: false });
     setAuditNumber(null);
   };
 
@@ -427,13 +428,27 @@ export const QuizApp = () => {
               </div>
 
               <div>
+                <Label htmlFor="company" className="text-sm font-medium text-foreground mb-2 block">
+                  Компания *
+                </Label>
+                <Input
+                  id="company"
+                  type="text"
+                  placeholder="Название вашей компании"
+                  value={contactInfo.company}
+                  onChange={(e) => setContactInfo({ ...contactInfo, company: e.target.value })}
+                  className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div>
                 <Label htmlFor="phone" className="text-sm font-medium text-foreground mb-2 block">
                   Телефон *
                 </Label>
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="+7 (___) ___-__-__"
+                  placeholder="+ (__) ___-__-__"
                   value={contactInfo.phone}
                   onChange={(e) => setContactInfo({ ...contactInfo, phone: e.target.value })}
                   className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -492,7 +507,7 @@ export const QuizApp = () => {
                 </Button>
                 <Button
                   onClick={handleSubmitContact}
-                  disabled={isSubmitting || !contactInfo.name || !contactInfo.phone || !contactInfo.email}
+                  disabled={isSubmitting || !contactInfo.name || !contactInfo.company || !contactInfo.phone || !contactInfo.email}
                   className="flex-1 bg-gradient-primary hover:opacity-90 text-white font-semibold shadow-soft disabled:opacity-50"
                 >
                   {isSubmitting ? 'Отправка...' : 'Получить результаты'}
@@ -632,6 +647,7 @@ export const QuizApp = () => {
                 </h3>
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <p><strong>Имя:</strong> {contactInfo.name}</p>
+                  <p><strong>Компания:</strong> {contactInfo.company}</p>
                   <p><strong>Телефон:</strong> {contactInfo.phone}</p>
                   <p><strong>Email:</strong> {contactInfo.email}</p>
                 </div>
