@@ -23,6 +23,7 @@ interface ContactInfo {
   phone: string;
   email: string;
   wantsDeepAudit: boolean;
+  agreeToPrivacyPolicy: boolean;
 }
 
 export const QuizApp = () => {
@@ -30,11 +31,14 @@ export const QuizApp = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState<QuizResponse[]>([]);
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
-  const [contactInfo, setContactInfo] = useState<ContactInfo>({ name: '', company: '', phone: '', email: '', wantsDeepAudit: false });
+  const [contactInfo, setContactInfo] = useState<ContactInfo>({ name: '', company: '', phone: '', email: '', wantsDeepAudit: false, agreeToPrivacyPolicy: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [auditNumber, setAuditNumber] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [phonePlaceholderIndex, setPhonePlaceholderIndex] = useState(0);
   const { toast } = useToast();
+
+  const phonePlaceholders = ['+375 44 755-40-00', '+7 495 123-45-67'];
 
   // Определяем мобильное устройство
   useEffect(() => {
@@ -44,6 +48,14 @@ export const QuizApp = () => {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Анимация смены placeholder телефона
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPhonePlaceholderIndex((prev) => (prev + 1) % phonePlaceholders.length);
+    }, 3000); // Меняем каждые 3 секунды
+    return () => clearInterval(interval);
   }, []);
 
   // Собираем все вопросы из всех категорий
@@ -134,6 +146,15 @@ export const QuizApp = () => {
       return;
     }
 
+    if (!contactInfo.agreeToPrivacyPolicy) {
+      toast({
+        title: "Требуется согласие",
+        description: "Пожалуйста, подтвердите согласие на обработку персональных данных",
+        variant: "default",
+      });
+      return;
+    }
+
     // Валидация email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(contactInfo.email)) {
@@ -215,7 +236,7 @@ export const QuizApp = () => {
     setCurrentQuestionIndex(0);
     setResponses([]);
     setSelectedRating(null);
-    setContactInfo({ name: '', company: '', phone: '', email: '', wantsDeepAudit: false });
+    setContactInfo({ name: '', company: '', phone: '', email: '', wantsDeepAudit: false, agreeToPrivacyPolicy: false });
     setAuditNumber(null);
   };
 
@@ -421,7 +442,7 @@ export const QuizApp = () => {
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Иван Петров"
+                  placeholder="Дмитрий Утлик"
                   value={contactInfo.name}
                   onChange={(e) => setContactInfo({ ...contactInfo, name: e.target.value })}
                   className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -435,7 +456,7 @@ export const QuizApp = () => {
                 <Input
                   id="company"
                   type="text"
-                  placeholder="ООО Рога и Копыта"
+                  placeholder="ООО Утлик Ко"
                   value={contactInfo.company}
                   onChange={(e) => setContactInfo({ ...contactInfo, company: e.target.value })}
                   className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -449,10 +470,10 @@ export const QuizApp = () => {
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="+7 999 123-45-67"
+                  placeholder={phonePlaceholders[phonePlaceholderIndex]}
                   value={contactInfo.phone}
                   onChange={(e) => setContactInfo({ ...contactInfo, phone: e.target.value })}
-                  className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-500"
                 />
               </div>
 
@@ -463,7 +484,7 @@ export const QuizApp = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="ivan.petrov@example.com"
+                  placeholder="dev@utlik.pro"
                   value={contactInfo.email}
                   onChange={(e) => setContactInfo({ ...contactInfo, email: e.target.value })}
                   className="w-full p-3 text-base border-2 border-glass-border/30 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -491,10 +512,25 @@ export const QuizApp = () => {
                 </div>
               </div>
 
+              {/* Privacy Policy Agreement */}
               <div className="bg-secondary/20 rounded-lg p-4">
-                <p className="text-xs text-muted-foreground">
-                  Мы уважаем вашу конфиденциальность. Ваши данные будут использованы только для отправки результатов диагностики.
-                </p>
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="privacyPolicy"
+                    checked={contactInfo.agreeToPrivacyPolicy}
+                    onChange={(e) => setContactInfo({ ...contactInfo, agreeToPrivacyPolicy: e.target.checked })}
+                    className="mt-1 w-5 h-5 rounded border-2 border-muted-foreground text-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="privacyPolicy" className="text-sm text-muted-foreground cursor-pointer">
+                      Я соглашаюсь на обработку персональных данных и принимаю условия{' '}
+                      <a href="/privacy-policy" target="_blank" className="text-primary hover:underline">
+                        Политики конфиденциальности
+                      </a>
+                    </Label>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-4">
@@ -508,7 +544,7 @@ export const QuizApp = () => {
                 </Button>
                 <Button
                   onClick={handleSubmitContact}
-                  disabled={isSubmitting || !contactInfo.name || !contactInfo.company || !contactInfo.phone || !contactInfo.email}
+                  disabled={isSubmitting || !contactInfo.name || !contactInfo.company || !contactInfo.phone || !contactInfo.email || !contactInfo.agreeToPrivacyPolicy}
                   className="flex-1 bg-gradient-primary hover:opacity-90 text-white font-semibold shadow-soft disabled:opacity-50"
                 >
                   {isSubmitting ? 'Отправка...' : 'Получить результаты'}
