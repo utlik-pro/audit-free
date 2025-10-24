@@ -13,6 +13,7 @@ interface CategoryScore {
 
 interface ContactInfo {
   name: string;
+  company?: string;
   phone: string;
   email: string;
   wantsDeepAudit: boolean;
@@ -512,11 +513,16 @@ export const generateDiagnosticPDF = async (results: DiagnosticResults) => {
 
   // Контактная информация клиента (перенесена с первой страницы)
   // Проверяем, есть ли место на текущей странице, иначе создаем новую
-  y2 = await checkAndCreateNewPage(y2 + 10, 45);
+  const contactInfoHeight = results.contactInfo.company ? 53 : 45;
+  y2 = await checkAndCreateNewPage(y2 + 10, contactInfoHeight);
   drawText2('Контактная информация:', 25, y2, 12);
   y2 += 8;
   drawText2(`${results.contactInfo.name}`, 30, y2, 10, { color: COLORS.muted });
   y2 += 8;
+  if (results.contactInfo.company) {
+    drawText2(`${results.contactInfo.company}`, 30, y2, 10, { color: COLORS.muted });
+    y2 += 8;
+  }
   drawText2(`${results.contactInfo.phone}`, 30, y2, 10, { color: COLORS.muted });
   y2 += 8;
   drawText2(`${results.contactInfo.email}`, 30, y2, 10, { color: COLORS.muted });

@@ -580,6 +580,9 @@ export default function Admin() {
                       <h3 className="text-lg font-bold mb-4">Контактная информация</h3>
                       <div className="space-y-2 text-sm">
                         <p><strong>Имя:</strong> {answersData.contactInfo.name}</p>
+                        {answersData.contactInfo.company && (
+                          <p><strong>Компания:</strong> {answersData.contactInfo.company}</p>
+                        )}
                         <p><strong>Телефон:</strong> {answersData.contactInfo.phone}</p>
                         <p><strong>Email:</strong> {answersData.contactInfo.email}</p>
                         {answersData.contactInfo.wantsDeepAudit && (

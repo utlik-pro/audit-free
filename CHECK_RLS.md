@@ -83,7 +83,7 @@ FROM
     information_schema.columns
 WHERE 
     table_name = 'quiz_responses'
-    AND column_name = 'archived';
+    AND column_name = 'archived'
 ```
 
 ## Шаг 4: Тестирование в SQL Editor
