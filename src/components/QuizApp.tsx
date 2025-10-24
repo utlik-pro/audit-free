@@ -4,12 +4,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { categories, ratingScale, interpretations, Category, ResultInterpretation } from '@/data/quizData';
-import { ArrowLeft, ArrowRight, CheckCircle, Download } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Download, Save, Share2, Copy, ExternalLink, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { generateDiagnosticPDF } from '@/utils/pdfGenerator';
 import { QuestionExplanation } from '@/components/QuestionExplanation';
 import { sendTelegramNotification } from '@/utils/telegramNotifier';
+import { saveQuizProgress, loadQuizProgress, clearQuizProgress, hasQuizProgress } from '@/utils/quizStorage';
+import { ResultsRadarChart } from '@/components/ResultsRadarChart';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface QuizResponse {
   questionId: number;
@@ -36,9 +48,14 @@ export const QuizApp = () => {
   const [auditNumber, setAuditNumber] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [phonePlaceholderIndex, setPhonePlaceholderIndex] = useState(0);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [quizStartTime, setQuizStartTime] = useState<Date | null>(null);
+  const [estimatedTimeLeft, setEstimatedTimeLeft] = useState<number>(0);
   const { toast } = useToast();
 
   const phonePlaceholders = ['+375 44 755-40-00', '+7 495 123-45-67'];
+  const AVERAGE_TIME_PER_QUESTION = 25; // секунд на вопрос
 
   // Определяем мобильное устройство
   useEffect(() => {
@@ -57,6 +74,101 @@ export const QuizApp = () => {
     }, 3000); // Меняем каждые 3 секунды
     return () => clearInterval(interval);
   }, []);
+
+  // Проверка сохраненного прогресса при загрузке
+  useEffect(() => {
+    if (hasQuizProgress()) {
+      setShowRestoreDialog(true);
+    }
+  }, []);
+
+  // Автосохранение прогресса при изменении
+  useEffect(() => {
+    if (currentStep === 'quiz' && responses.length > 0) {
+      saveQuizProgress({
+        currentQuestionIndex,
+        responses,
+        selectedRating,
+      });
+      setLastSaved(new Date());
+    }
+  }, [currentStep, currentQuestionIndex, responses, selectedRating]);
+
+  // Восстановление прогресса
+  const handleRestoreProgress = () => {
+    const progress = loadQuizProgress();
+    if (progress) {
+      setCurrentQuestionIndex(progress.currentQuestionIndex);
+      setResponses(progress.responses);
+      setSelectedRating(progress.selectedRating);
+      setCurrentStep('quiz');
+      toast({
+        title: "Прогресс восстановлен",
+        description: `Продолжаем с вопроса ${progress.currentQuestionIndex + 1}`,
+      });
+    }
+    setShowRestoreDialog(false);
+  };
+
+  // Начать заново
+  const handleStartFresh = () => {
+    clearQuizProgress();
+    setShowRestoreDialog(false);
+  };
+
+  // Расчет оставшегося времени
+  useEffect(() => {
+    if (currentStep === 'quiz') {
+      const questionsLeft = totalQuestions - currentQuestionIndex;
+      const estimatedSeconds = questionsLeft * AVERAGE_TIME_PER_QUESTION;
+      setEstimatedTimeLeft(estimatedSeconds);
+    }
+  }, [currentStep, currentQuestionIndex]);
+
+  // Форматирование времени
+  const formatTimeLeft = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins > 0) {
+      return `~${mins} мин`;
+    }
+    return `~${secs} сек`;
+  };
+
+  // Горячие клавиши для quiz
+  useEffect(() => {
+    if (currentStep !== 'quiz') return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Игнорируем, если фокус на input или textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // Цифры 1-5 для выбора оценки
+      const key = e.key;
+      if (key >= '1' && key <= '5') {
+        const rating = parseInt(key);
+        handleRatingSelect(rating);
+        e.preventDefault();
+      }
+
+      // Enter для перехода к следующему вопросу
+      if (key === 'Enter' && selectedRating !== null) {
+        handleNextQuestion();
+        e.preventDefault();
+      }
+
+      // Backspace или стрелка влево для возврата назад
+      if ((key === 'Backspace' || key === 'ArrowLeft') && currentQuestionIndex > 0) {
+        handlePreviousQuestion();
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [currentStep, selectedRating, currentQuestionIndex]);
 
   // Собираем все вопросы из всех категорий
   const allQuestions = categories.flatMap(cat => cat.questions);
@@ -218,6 +330,7 @@ export const QuizApp = () => {
         description: "Ваши результаты сохранены. Мы свяжемся с вами в ближайшее время.",
       });
 
+      clearQuizProgress(); // Очищаем сохраненный прогресс после завершения
       setCurrentStep('results');
     } catch (error) {
       console.error('Error saving quiz response:', error);
@@ -232,12 +345,14 @@ export const QuizApp = () => {
   };
 
   const resetQuiz = () => {
+    clearQuizProgress();
     setCurrentStep('intro');
     setCurrentQuestionIndex(0);
     setResponses([]);
     setSelectedRating(null);
     setContactInfo({ name: '', company: '', phone: '', email: '', wantsDeepAudit: false, agreeToPrivacyPolicy: false });
     setAuditNumber(null);
+    setLastSaved(null);
   };
 
   const renderIntro = () => (
@@ -331,8 +446,22 @@ export const QuizApp = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               {currentQuestionIndex === 0 ? 'К описанию' : 'Назад'}
             </Button>
-            <div className="text-sm text-muted-foreground font-medium">
-              {currentQuestionIndex + 1} / {totalQuestions}
+            <div className="flex items-center gap-3">
+              {estimatedTimeLeft > 0 && (
+                <div className="flex items-center gap-1 text-xs text-primary">
+                  <Clock className="w-3 h-3" />
+                  <span>{formatTimeLeft(estimatedTimeLeft)}</span>
+                </div>
+              )}
+              {lastSaved && (
+                <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                  <Save className="w-3 h-3" />
+                  <span className="hidden sm:inline">Сохранено</span>
+                </div>
+              )}
+              <div className="text-sm text-muted-foreground font-medium">
+                {currentQuestionIndex + 1} / {totalQuestions}
+              </div>
             </div>
           </div>
         </div>
@@ -362,9 +491,14 @@ export const QuizApp = () => {
                   />
                 </div>
 
-                <p className="text-sm text-muted-foreground mb-6">
-                  Выберите оценку от 1 до 5:
-                </p>
+                <div className="mb-6">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Выберите оценку от 1 до 5:
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 hidden md:block">
+                    💡 Используйте клавиши 1-5 для быстрого выбора, Enter для продолжения
+                  </p>
+                </div>
 
                 <div className="space-y-3">
                   {ratingScale.map((scale) => (
@@ -599,6 +733,55 @@ export const QuizApp = () => {
     }
   };
 
+  const getResultsUrl = () => {
+    if (auditNumber === null) return '';
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/results/${auditNumber}`;
+  };
+
+  const handleShare = async () => {
+    const { totalScore } = calculateResults();
+    const url = getResultsUrl();
+    const text = `Мои результаты AI Readiness диагностики: ${totalScore}/20`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'AI Readiness Диагностика',
+          text,
+          url,
+        });
+      } catch (error) {
+        console.error('Error sharing:', error);
+      }
+    } else {
+      handleCopyLink();
+    }
+  };
+
+  const handleCopyLink = async () => {
+    const url = getResultsUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: "Ссылка скопирована!",
+        description: "Поделитесь результатами с коллегами",
+      });
+    } catch (error) {
+      console.error('Error copying link:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось скопировать ссылку",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenResults = () => {
+    const url = getResultsUrl();
+    window.open(url, '_blank');
+  };
+
   const renderResults = () => {
     const { categoryScores, totalScore, interpretation } = calculateResults();
 
@@ -624,14 +807,70 @@ export const QuizApp = () => {
                   {interpretation.description}
                 </p>
 
-                {/* PDF Download Button */}
+                {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
                 <Button
                   onClick={handleDownloadPDF}
-                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 text-white px-6 py-3 rounded-lg font-semibold shadow-lg mt-4"
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 text-white px-6 py-3 rounded-lg font-semibold shadow-lg"
                 >
                   <Download className="w-5 h-5 mr-2" />
-                  Скачать результаты в PDF
+                  Скачать PDF
                 </Button>
+                <Button
+                  onClick={handleShare}
+                  variant="outline"
+                  className="px-6 py-3 rounded-lg font-semibold"
+                >
+                  <Share2 className="w-5 h-5 mr-2" />
+                  Поделиться
+                </Button>
+                <Button
+                  onClick={handleCopyLink}
+                  variant="outline"
+                  className="px-6 py-3 rounded-lg font-semibold"
+                >
+                  <Copy className="w-5 h-5 mr-2" />
+                  Копировать ссылку
+                </Button>
+              </div>
+
+              {/* Public Results Link */}
+              {auditNumber && (
+                <div className="mt-4 p-3 bg-secondary/20 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Публичная ссылка на результаты:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-background/50 px-3 py-2 rounded border border-border overflow-x-auto">
+                      {getResultsUrl()}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleOpenResults}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Radar Chart Visualization */}
+              <div className="mb-8">
+                <h3 className="text-xl font-bold text-foreground mb-4 text-center">
+                  Визуализация результатов
+                </h3>
+                <Card className="bg-glass/20 border-glass-border/30 p-6">
+                  <ResultsRadarChart
+                    categoryScores={{
+                      data: categoryScores['data'] || 0,
+                      processes: categoryScores['processes'] || 0,
+                      people: categoryScores['people'] || 0,
+                      results: categoryScores['results'] || 0,
+                    }}
+                  />
+                </Card>
               </div>
 
               {/* Category Scores */}
@@ -743,16 +982,33 @@ export const QuizApp = () => {
     );
   };
 
-  switch (currentStep) {
-    case 'intro':
-      return renderIntro();
-    case 'quiz':
-      return renderQuiz();
-    case 'contact':
-      return renderContactForm();
-    case 'results':
-      return renderResults();
-    default:
-      return renderIntro();
-  }
+  return (
+    <>
+      {/* Диалог восстановления прогресса */}
+      <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Продолжить диагностику?</AlertDialogTitle>
+            <AlertDialogDescription>
+              У вас есть незавершенная диагностика. Хотите продолжить с того места, где остановились, или начать заново?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleStartFresh}>
+              Начать заново
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreProgress}>
+              Продолжить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Основной контент */}
+      {currentStep === 'intro' && renderIntro()}
+      {currentStep === 'quiz' && renderQuiz()}
+      {currentStep === 'contact' && renderContactForm()}
+      {currentStep === 'results' && renderResults()}
+    </>
+  );
 };
